@@ -1,0 +1,47 @@
+name: Phoenix Bot - User1
+
+on:
+  schedule:
+    # This is updated automatically by the bot after each run
+    # Format: minute hour day month weekday (UTC)
+    # Example below = Every Thursday at 1:30 PM UTC (7:00 PM IST)
+    - cron: '30 13 * * 4'
+
+  # Allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install selenium webdriver-manager
+
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run Phoenix Bot for User1
+        env:
+          CRICJOIN_PASSWORD: ${{ secrets.USER1_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          python bot/phoenix_bot.py configs/user1.json
+
+      - name: Commit status update
+        if: always()
+        run: |
+          git config --global user.email "phoenix-bot@github.com"
+          git config --global user.name "Phoenix Bot"
+          git add status/user1_status.json configs/user1.json
+          git diff --staged --quiet || git commit -m "Phoenix: Update user1 status & next run date"
+          git push
