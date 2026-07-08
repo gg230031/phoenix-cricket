@@ -1,0 +1,1611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phoenix — CricJoin Auto Registration</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+  :root {
+    --fire-1: #FF4500;
+    --fire-2: #FF8C00;
+    --fire-3: #FFA500;
+    --dark:   #0D0D0D;
+    --dark-2: #1A1A1A;
+    --dark-3: #252525;
+    --dark-4: #303030;
+    --text:   #F0F0F0;
+    --text-2: #A0A0A0;
+    --text-3: #606060;
+    --success:#2ECC71;
+    --error:  #E74C3C;
+    --warn:   #F39C12;
+    --info:   #3498DB;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--dark);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── PAGES ── */
+  .page { display: none; min-height: 100vh; }
+  .page.active { display: flex; flex-direction: column; }
+
+  /* ── LOGIN PAGE ── */
+  #login-page {
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at 50% 0%, rgba(255,69,0,0.15) 0%, var(--dark) 70%);
+    padding: 24px;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--dark-2);
+    border: 1px solid var(--dark-4);
+    border-radius: 20px;
+    padding: 48px 40px;
+    box-shadow: 0 0 60px rgba(255,69,0,0.08);
+  }
+
+  .phoenix-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 36px;
+    justify-content: center;
+  }
+
+  .phoenix-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--fire-1), var(--fire-3));
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 4px 20px rgba(255,69,0,0.4);
+  }
+
+  .phoenix-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--fire-1), var(--fire-3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+  }
+
+  .login-subtitle {
+    text-align: center;
+    color: var(--text-2);
+    font-size: 14px;
+    margin-bottom: 32px;
+    line-height: 1.5;
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 8px;
+  }
+
+  .form-group input,
+  .form-group select {
+    width: 100%;
+    background: var(--dark-3);
+    border: 1px solid var(--dark-4);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    color: var(--text);
+    font-size: 15px;
+    font-family: 'Inter', sans-serif;
+    transition: border-color 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .form-group select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23A0A0A0' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 40px;
+    cursor: pointer;
+  }
+
+  .form-group select option {
+    background: var(--dark-3);
+    color: var(--text);
+  }
+
+  .form-group input:focus,
+  .form-group select:focus {
+    outline: none;
+    border-color: var(--fire-1);
+    box-shadow: 0 0 0 3px rgba(255,69,0,0.1);
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--fire-1), var(--fire-2));
+    border: none;
+    border-radius: var(--radius-sm);
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    margin-top: 8px;
+    letter-spacing: 0.3px;
+  }
+
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+
+  .login-demo {
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid var(--dark-4);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .demo-label {
+    font-size: 11px;
+    color: var(--text-3);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .demo-btns {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn-demo {
+    flex: 1;
+    padding: 10px;
+    background: var(--dark-3);
+    border: 1px solid var(--dark-4);
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-demo:hover { border-color: var(--fire-1); color: var(--fire-1); }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    background: var(--dark-2);
+    border-bottom: 1px solid var(--dark-4);
+    padding: 0 24px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .topbar-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .topbar-logo .phoenix-icon { width: 34px; height: 34px; font-size: 16px; border-radius: 8px; }
+  .topbar-logo .phoenix-name { font-size: 20px; }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .topbar-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .user-avatar {
+    width: 34px;
+    height: 34px;
+    background: linear-gradient(135deg, var(--fire-1), var(--fire-2));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+  }
+
+  .user-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .topbar-datetime {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+    margin-right: 4px;
+  }
+
+  .topbar-time {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--fire-2);
+    line-height: 1.2;
+  }
+
+  .topbar-date {
+    font-size: 11px;
+    color: var(--text-3);
+  }
+
+  .btn-logout {
+    padding: 7px 14px;
+    background: transparent;
+    border: 1px solid var(--dark-4);
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-logout:hover { border-color: var(--fire-1); color: var(--fire-1); }
+
+  /* ── MAIN CONTENT ── */
+  .main-content {
+    flex: 1;
+    padding: 32px 24px;
+    max-width: 760px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .page-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .page-subtitle {
+    font-size: 14px;
+    color: var(--text-2);
+    margin-bottom: 28px;
+  }
+
+  /* ── STATUS BANNER ── */
+  .status-banner {
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border: 1px solid;
+  }
+
+  .status-banner.scheduled { background: rgba(52,152,219,0.08); border-color: rgba(52,152,219,0.3); }
+  .status-banner.running   { background: rgba(243,156,18,0.08); border-color: rgba(243,156,18,0.3); }
+  .status-banner.success   { background: rgba(46,204,113,0.08); border-color: rgba(46,204,113,0.3); }
+  .status-banner.failed    { background: rgba(231,76,60,0.08);  border-color: rgba(231,76,60,0.3); }
+  .status-banner.idle      { background: rgba(96,96,96,0.08);   border-color: rgba(96,96,96,0.3); }
+
+  .status-dot {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .status-banner.scheduled .status-dot { background: rgba(52,152,219,0.15); }
+  .status-banner.running   .status-dot { background: rgba(243,156,18,0.15); }
+  .status-banner.success   .status-dot { background: rgba(46,204,113,0.15); }
+  .status-banner.failed    .status-dot { background: rgba(231,76,60,0.15);  }
+  .status-banner.idle      .status-dot { background: rgba(96,96,96,0.15);   }
+
+  .status-info { flex: 1; }
+  .status-title { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+  .status-desc  { font-size: 13px; color: var(--text-2); }
+
+  .status-banner.scheduled .status-title { color: var(--info); }
+  .status-banner.running   .status-title { color: var(--warn); }
+  .status-banner.success   .status-title { color: var(--success); }
+  .status-banner.failed    .status-title { color: var(--error); }
+  .status-banner.idle      .status-title { color: var(--text-2); }
+
+  .pulse { animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--dark-2);
+    border: 1px solid var(--dark-4);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--dark-4);
+  }
+
+  .card-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-icon {
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, rgba(255,69,0,0.2), rgba(255,140,0,0.2));
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+
+  /* ── FORM ROWS ── */
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .form-row-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  /* ── NEXT RUN DISPLAY ── */
+  .next-run-display {
+    background: var(--dark-3);
+    border: 1px solid var(--dark-4);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .next-run-label {
+    font-size: 12px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  .next-run-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--fire-2);
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  .next-run-auto {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-left: auto;
+    background: var(--dark-4);
+    padding: 3px 8px;
+    border-radius: 20px;
+  }
+
+  /* ── SLOT CHOICES ── */
+  .slot-choices-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .slot-choice-item {
+    background: var(--dark-3);
+    border: 1px solid var(--dark-4);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .choice-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--fire-1), var(--fire-2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .choice-fields {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+  }
+
+  .choice-fields select {
+    flex: 1;
+    background: var(--dark-4);
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    padding: 8px 32px 8px 10px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23A0A0A0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    cursor: pointer;
+  }
+
+  .choice-fields select:focus {
+    outline: none;
+    border-color: var(--fire-1);
+  }
+
+  .choice-fields select option { background: var(--dark-3); }
+
+  .btn-remove {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 1px solid var(--dark-4);
+    border-radius: 6px;
+    color: var(--text-3);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    line-height: 1;
+  }
+
+  .btn-remove:hover { border-color: var(--error); color: var(--error); background: rgba(231,76,60,0.08); }
+
+  .btn-add-choice {
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    border: 1px dashed var(--dark-4);
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .btn-add-choice:hover { border-color: var(--fire-1); color: var(--fire-1); background: rgba(255,69,0,0.04); }
+
+  /* ── CATEGORY TOGGLE ── */
+  .category-toggle {
+    display: flex;
+    gap: 0;
+    background: var(--dark-3);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+    margin-bottom: 16px;
+  }
+
+  .category-btn {
+    flex: 1;
+    padding: 10px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-2);
+    font-size: 14px;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .category-btn.active {
+    background: linear-gradient(135deg, var(--fire-1), var(--fire-2));
+    color: white;
+    box-shadow: 0 2px 8px rgba(255,69,0,0.3);
+  }
+
+  /* ── SAVE BAR ── */
+  .save-bar {
+    position: sticky;
+    bottom: 0;
+    background: var(--dark-2);
+    border-top: 1px solid var(--dark-4);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .save-bar-text {
+    font-size: 13px;
+    color: var(--text-2);
+  }
+
+  .btn-save {
+    padding: 12px 32px;
+    background: linear-gradient(135deg, var(--fire-1), var(--fire-2));
+    border: none;
+    border-radius: var(--radius-sm);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .btn-save:hover { opacity: 0.9; transform: translateY(-1px); }
+
+  /* ── ADMIN PAGE ── */
+  .admin-topbar-badge {
+    background: linear-gradient(135deg, var(--fire-1), var(--fire-2));
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: 0.5px;
+  }
+
+  .users-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .user-card {
+    background: var(--dark-2);
+    border: 1px solid var(--dark-4);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: border-color 0.2s;
+  }
+
+  .user-card:hover { border-color: var(--dark-3); }
+  .user-card.inactive { opacity: 0.5; }
+
+  .user-card-avatar {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, var(--fire-1), var(--fire-2));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .user-card-info { flex: 1; min-width: 0; }
+  .user-card-name { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .user-card-email { font-size: 13px; color: var(--text-2); }
+
+  .user-card-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .status-pill {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .status-pill.active   { background: rgba(46,204,113,0.15); color: var(--success); }
+  .status-pill.inactive { background: rgba(96,96,96,0.15);   color: var(--text-3); }
+  .status-pill.running  { background: rgba(243,156,18,0.15); color: var(--warn); }
+  .status-pill.success  { background: rgba(46,204,113,0.15); color: var(--success); }
+  .status-pill.scheduled{ background: rgba(52,152,219,0.15); color: var(--info); }
+
+  .user-card-slots {
+    font-size: 12px;
+    color: var(--text-3);
+    text-align: right;
+  }
+
+  .user-card-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .btn-icon {
+    width: 34px;
+    height: 34px;
+    background: var(--dark-3);
+    border: 1px solid var(--dark-4);
+    border-radius: 8px;
+    color: var(--text-2);
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .btn-icon:hover { border-color: var(--fire-1); color: var(--fire-1); }
+  .btn-icon.danger:hover { border-color: var(--error); color: var(--error); }
+
+  /* ── ADD USER MODAL ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    backdrop-filter: blur(4px);
+  }
+
+  .modal-overlay.active { display: flex; }
+
+  .modal {
+    background: var(--dark-2);
+    border: 1px solid var(--dark-4);
+    border-radius: 16px;
+    padding: 32px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .modal-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 24px;
+  }
+
+  .btn-secondary {
+    flex: 1;
+    padding: 12px;
+    background: var(--dark-3);
+    border: 1px solid var(--dark-4);
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-secondary:hover { border-color: var(--text-2); color: var(--text); }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--dark-3);
+    border: 1px solid var(--dark-4);
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 14px;
+    color: var(--text);
+    z-index: 300;
+    opacity: 0;
+    transition: all 0.3s;
+    white-space: nowrap;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--success); color: var(--success); }
+  .toast.error   { border-color: var(--error);   color: var(--error); }
+
+  /* ── DIVIDER ── */
+  .divider { height: 1px; background: var(--dark-4); margin: 20px 0; }
+
+  /* ── STAT ROW ── */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--dark-2);
+    border: 1px solid var(--dark-4);
+    border-radius: var(--radius);
+    padding: 16px;
+    text-align: center;
+  }
+
+  .stat-num {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--fire-1), var(--fire-3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 4px;
+  }
+
+  .stat-label { font-size: 12px; color: var(--text-2); }
+
+  /* ── COUNTDOWN ── */
+  .countdown-display {
+    background: linear-gradient(135deg, rgba(255,69,0,0.08), rgba(255,140,0,0.08));
+    border: 1px solid rgba(255,69,0,0.2);
+    border-radius: var(--radius);
+    padding: 20px 20px 16px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .countdown-label {
+    font-size: 11px;
+    color: var(--text-2);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 14px;
+  }
+
+  .countdown-boxes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .countdown-box {
+    background: rgba(255,69,0,0.1);
+    border: 1px solid rgba(255,69,0,0.25);
+    border-radius: 10px;
+    padding: 12px 18px;
+    min-width: 74px;
+  }
+
+  .countdown-box-num {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 34px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--fire-1), var(--fire-3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .countdown-box-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .countdown-sep {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--fire-2);
+    opacity: 0.5;
+    margin-bottom: 16px;
+  }
+
+  .countdown-next { font-size: 13px; color: var(--text-2); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 500px) {
+    .login-card { padding: 32px 24px; }
+    .form-row, .form-row-3 { grid-template-columns: 1fr; }
+    .stat-row { grid-template-columns: repeat(3, 1fr); }
+    .main-content { padding: 20px 16px; }
+    .choice-fields { flex-direction: column; }
+    .user-card { flex-wrap: wrap; }
+    .topbar { padding: 0 16px; }
+    .user-name { display: none; }
+  }
+
+  .section-spacer { height: 80px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     LOGIN PAGE
+══════════════════════════════════════════════════════ -->
+<div id="login-page" class="page active">
+  <div class="login-card">
+    <div class="phoenix-logo">
+      <div class="phoenix-icon">🔥</div>
+      <div class="phoenix-name">Phoenix</div>
+    </div>
+    <p class="login-subtitle">CricJoin Auto Registration<br>Beyond Boundaries — Vile Parle</p>
+
+    <div class="form-group">
+      <label>Email Address</label>
+      <input type="email" id="login-email" placeholder="you@email.com" value="">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" value="">
+    </div>
+    <button class="btn-primary" onclick="doLogin()">Sign in to Phoenix</button>
+
+    <div class="login-demo">
+      <div class="demo-label">Preview as</div>
+      <div class="demo-btns">
+        <button class="btn-demo" onclick="loginAs('user')">👤 User</button>
+        <button class="btn-demo" onclick="loginAs('admin')">⚡ Admin</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     USER DASHBOARD
+══════════════════════════════════════════════════════ -->
+<div id="user-page" class="page">
+  <div class="topbar">
+    <div class="topbar-logo">
+      <div class="phoenix-icon">🔥</div>
+      <div class="phoenix-name">Phoenix</div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-datetime">
+        <div class="topbar-time" id="topbar-time">11:15 PM</div>
+        <div class="topbar-date" id="topbar-date">Wed, 8 Jul 2026</div>
+      </div>
+      <div class="topbar-user">
+        <div class="user-avatar" id="user-avatar">G</div>
+        <div class="user-name" id="user-display-name">Guru</div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="page-title">My Dashboard</div>
+    <div class="page-subtitle">Manage your slot preferences and registration schedule</div>
+
+    <!-- Status Banner -->
+    <div class="status-banner scheduled" id="status-banner">
+      <div class="status-dot">🕐</div>
+      <div class="status-info">
+        <div class="status-title" id="status-title">Scheduled</div>
+        <div class="status-desc" id="status-desc">Bot will run on Thursday, 10 Jul 2026 at 7:00 PM</div>
+      </div>
+    </div>
+
+    <!-- Countdown -->
+    <div class="countdown-display">
+      <div class="countdown-label">Time until registration opens</div>
+      <div class="countdown-boxes">
+        <div class="countdown-box">
+          <div class="countdown-box-num" id="cd-hours">00</div>
+          <div class="countdown-box-label">Hours</div>
+        </div>
+        <div class="countdown-sep">:</div>
+        <div class="countdown-box">
+          <div class="countdown-box-num" id="cd-mins">00</div>
+          <div class="countdown-box-label">Mins</div>
+        </div>
+        <div class="countdown-sep">:</div>
+        <div class="countdown-box">
+          <div class="countdown-box-num" id="cd-secs">00</div>
+          <div class="countdown-box-label">Secs</div>
+        </div>
+      </div>
+      <div class="countdown-next" id="countdown-next">Thursday, 9 Jul 2026 at 9:00 PM</div>
+    </div>
+
+    <!-- Registration Schedule -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">📅</div>
+          Registration Schedule
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:0">
+          <label>Registration Day</label>
+          <select id="reg-day" onchange="updateNextRun()">
+            <option>Monday</option>
+            <option>Tuesday</option>
+            <option>Wednesday</option>
+            <option selected>Thursday</option>
+            <option>Friday</option>
+            <option>Saturday</option>
+            <option>Sunday</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Registration Time</label>
+          <select id="reg-time" onchange="updateNextRun()">
+            <option>06:00 AM</option>
+            <option>06:30 AM</option>
+            <option>07:00 AM</option>
+            <option>07:30 AM</option>
+            <option>08:00 AM</option>
+            <option>08:30 AM</option>
+            <option>09:00 AM</option>
+            <option>05:00 PM</option>
+            <option>05:30 PM</option>
+            <option>06:00 PM</option>
+            <option>06:30 PM</option>
+            <option selected>07:00 PM</option>
+            <option>07:30 PM</option>
+            <option>08:00 PM</option>
+            <option>08:30 PM</option>
+            <option>09:00 PM</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top: 16px;">
+        <div class="next-run-display">
+          <div>
+            <div class="next-run-label">Next bot run</div>
+            <div class="next-run-value" id="next-run-value">Thursday, 10 Jul 2026 at 7:00 PM</div>
+          </div>
+          <div class="next-run-auto">Auto-advances weekly 🔄</div>
+        </div>
+      </div>
+
+      <div style="background: rgba(52,152,219,0.06); border: 1px solid rgba(52,152,219,0.2); border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #5dade2; margin-top: 4px;">
+        ℹ️ After each successful registration, the date automatically moves to the following week. You only need to update this if the day or time changes.
+      </div>
+    </div>
+
+    <!-- Slot Preferences -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">🏏</div>
+          Slot Preferences
+        </div>
+      </div>
+
+      <p style="font-size: 13px; color: var(--text-2); margin-bottom: 16px; line-height: 1.6;">
+        Set your preferred slots in priority order. The bot tries Choice 1 first. If it's full, it moves to Choice 2, and so on. It will never join a waitlist.
+      </p>
+
+      <div class="slot-choices-list" id="slot-choices">
+        <!-- Slot choices rendered by JS -->
+      </div>
+
+      <button class="btn-add-choice" onclick="addSlotChoice()">
+        <span>+</span> Add another slot choice
+      </button>
+    </div>
+
+    <!-- CricJoin Credentials -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">🔐</div>
+          CricJoin Credentials
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:0">
+          <label>CricJoin Email</label>
+          <input type="email" value="guru0812@gmail.com" placeholder="your@email.com">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>CricJoin Password</label>
+          <input type="password" value="••••••••••" placeholder="password">
+        </div>
+      </div>
+    </div>
+
+    <!-- Preferences -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">⚙️</div>
+          Preferences
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Category</label>
+        <div class="category-toggle">
+          <button class="category-btn active" onclick="setCategory(this, 'Boys')">🏏 Boys</button>
+          <button class="category-btn" onclick="setCategory(this, 'Girls')">🏏 Girls</button>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0">
+        <label>Mood Poll Answer</label>
+        <select>
+          <option selected>Excellent</option>
+          <option>Good</option>
+          <option>Okay</option>
+          <option>Not great</option>
+          <option>Poor</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section-spacer"></div>
+  </div>
+
+  <!-- Save Bar -->
+  <div class="save-bar">
+    <div class="save-bar-text">Changes are saved to your profile</div>
+    <button class="btn-save" onclick="saveSettings()">Save Settings</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     ADMIN PAGE
+══════════════════════════════════════════════════════ -->
+<div id="admin-page" class="page">
+  <div class="topbar">
+    <div class="topbar-logo">
+      <div class="phoenix-icon">🔥</div>
+      <div class="phoenix-name">Phoenix</div>
+    </div>
+    <div class="topbar-right">
+      <div class="admin-topbar-badge">ADMIN</div>
+      <button class="btn-logout" onclick="logout()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="page-title">Admin Panel</div>
+    <div class="page-subtitle">Manage users and monitor bot activity</div>
+
+    <!-- Stats -->
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-num">5</div>
+        <div class="stat-label">Total Users</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">4</div>
+        <div class="stat-label">Active</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">1</div>
+        <div class="stat-label">Running</div>
+      </div>
+    </div>
+
+    <!-- Users List -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">👥</div>
+          Users
+        </div>
+        <button class="btn-save" style="padding: 8px 16px; font-size: 13px;" onclick="showAddUser()">+ Add User</button>
+      </div>
+
+      <div class="users-grid" id="users-grid">
+        <!-- Users rendered by JS -->
+      </div>
+    </div>
+
+    <!-- System Status -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">📊</div>
+          This Week's Status
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;" id="system-status">
+        <!-- Status rendered by JS -->
+      </div>
+    </div>
+
+    <div class="section-spacer"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     ADD USER MODAL
+══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="add-user-modal">
+  <div class="modal">
+    <div class="modal-title">
+      <div class="card-icon">👤</div>
+      Add New User
+    </div>
+
+    <div class="form-group">
+      <label>Full Name</label>
+      <input type="text" id="new-user-name" placeholder="Rahul Sharma">
+    </div>
+    <div class="form-group">
+      <label>Email Address</label>
+      <input type="email" id="new-user-email" placeholder="rahul@email.com">
+    </div>
+    <div class="form-group">
+      <label>Temporary Password</label>
+      <input type="password" id="new-user-password" placeholder="Set a password for them">
+    </div>
+    <div class="form-group" style="margin-bottom:0">
+      <label>Category</label>
+      <select id="new-user-category">
+        <option>Boys</option>
+        <option>Girls</option>
+      </select>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="hideAddUser()">Cancel</button>
+      <button class="btn-save" style="flex:1" onclick="addUser()">Create User</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const USERS = [
+  { id:1, name:'Guru',    email:'guru0812@gmail.com',    avatar:'G', category:'Boys', active:true,  status:'scheduled', slots:[{day:'Saturday',time:'08:00 PM'},{day:'Sunday',time:'07:00 AM'}] },
+  { id:2, name:'Rahul',   email:'rahul@gmail.com',       avatar:'R', category:'Boys', active:true,  status:'running',   slots:[{day:'Sunday',time:'07:00 AM'},{day:'Saturday',time:'08:00 PM'}] },
+  { id:3, name:'Priya',   email:'priya@gmail.com',       avatar:'P', category:'Girls',active:true,  status:'success',   slots:[{day:'Saturday',time:'11:00 AM'}] },
+  { id:4, name:'Amogh',   email:'amogh@gmail.com',       avatar:'A', category:'Boys', active:true,  status:'scheduled', slots:[{day:'Sunday',time:'11:00 AM'},{day:'Saturday',time:'08:00 PM'}] },
+  { id:5, name:'Sheetal', email:'sheetal@gmail.com',     avatar:'S', category:'Girls',active:false, status:'inactive',  slots:[{day:'Sunday',time:'07:00 AM'}] },
+];
+
+const STATUS_META = {
+  scheduled: { label:'Scheduled', icon:'🕐', cls:'scheduled' },
+  running:   { label:'Running',   icon:'⚡', cls:'running'   },
+  success:   { label:'Registered ✓', icon:'✅', cls:'success' },
+  failed:    { label:'Failed',    icon:'❌', cls:'failed'    },
+  inactive:  { label:'Inactive',  icon:'⏸', cls:'idle'      },
+};
+
+let currentUser = null;
+let slotChoices = [
+  { day:'Saturday', time:'08:00 PM' },
+  { day:'Sunday',   time:'07:00 AM' },
+  { day:'Sunday',   time:'11:00 AM' },
+];
+
+const DAYS  = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const TIMES = ['06:00 AM','06:30 AM','07:00 AM','07:30 AM','08:00 AM','08:30 AM','09:00 AM','09:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM','12:00 PM','05:00 PM','05:30 PM','06:00 PM','06:30 PM','07:00 PM','07:30 PM','08:00 PM','08:30 PM','09:00 PM'];
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+function loginAs(role) {
+  if (role === 'admin') {
+    showPage('admin-page');
+    renderAdmin();
+  } else {
+    currentUser = USERS[0];
+    showPage('user-page');
+    renderUserPage();
+  }
+}
+
+function doLogin() {
+  const email = document.getElementById('login-email').value;
+  if (email === 'admin@phoenix.com') {
+    showPage('admin-page');
+    renderAdmin();
+  } else {
+    const user = USERS.find(u => u.email === email) || USERS[0];
+    currentUser = user;
+    showPage('user-page');
+    renderUserPage();
+  }
+}
+
+function logout() {
+  showPage('login-page');
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ── USER PAGE ─────────────────────────────────────────────────────────────────
+function renderUserPage() {
+  const u = currentUser || USERS[0];
+  document.getElementById('user-avatar').textContent       = u.avatar;
+  document.getElementById('user-display-name').textContent = u.name;
+
+  const sm = STATUS_META[u.status];
+  const banner = document.getElementById('status-banner');
+  banner.className = `status-banner ${sm.cls}`;
+  banner.querySelector('.status-dot').textContent   = sm.icon;
+  document.getElementById('status-title').textContent = sm.label;
+  document.getElementById('status-desc').textContent  = 'Bot will run on Thursday, 10 Jul 2026 at 7:00 PM';
+
+  slotChoices = [...u.slots];
+  renderSlotChoices();
+  updateNextRun();
+  startCountdown();
+}
+
+function renderSlotChoices() {
+  const container = document.getElementById('slot-choices');
+  container.innerHTML = '';
+  slotChoices.forEach((choice, idx) => {
+    const item = document.createElement('div');
+    item.className = 'slot-choice-item';
+    item.innerHTML = `
+      <div class="choice-num">${idx + 1}</div>
+      <div class="choice-fields">
+        <select onchange="updateChoice(${idx}, 'day', this.value)">
+          ${DAYS.map(d => `<option ${d===choice.day?'selected':''}>${d}</option>`).join('')}
+        </select>
+        <select onchange="updateChoice(${idx}, 'time', this.value)">
+          ${TIMES.map(t => `<option ${t===choice.time?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      ${slotChoices.length > 1 ? `<button class="btn-remove" onclick="removeChoice(${idx})">×</button>` : ''}
+    `;
+    container.appendChild(item);
+  });
+}
+
+function addSlotChoice() {
+  if (slotChoices.length >= 6) { showToast('Maximum 6 choices allowed', 'error'); return; }
+  slotChoices.push({ day:'Sunday', time:'07:00 AM' });
+  renderSlotChoices();
+}
+
+function removeChoice(idx) {
+  slotChoices.splice(idx, 1);
+  renderSlotChoices();
+}
+
+function updateChoice(idx, field, value) {
+  slotChoices[idx][field] = value;
+}
+
+function setCategory(btn, cat) {
+  document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function updateNextRun() {
+  const day  = document.getElementById('reg-day')?.value || 'Thursday';
+  const time = document.getElementById('reg-time')?.value || '09:00 PM';
+  const dateStr = getNextWeekday(day);
+  const display = `${day}, ${dateStr} at ${time}`;
+  const el = document.getElementById('next-run-value');
+  const cd = document.getElementById('countdown-next');
+  if (el) el.textContent = display;
+  if (cd) cd.textContent = display;
+  if (document.getElementById('status-desc'))
+    document.getElementById('status-desc').textContent = `Bot will run on ${display}`;
+  // Restart countdown whenever schedule changes
+  if (countdownInterval) startCountdown();
+}
+
+function getNextWeekday(dayName) {
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const today = new Date();
+  const target = days.indexOf(dayName);
+  let diff = target - today.getDay();
+  if (diff <= 0) diff += 7;
+  const next = new Date(today);
+  next.setDate(today.getDate() + diff);
+  return next.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+}
+
+let countdownInterval = null;
+let clockInterval = null;
+
+function startClock() {
+  if (clockInterval) clearInterval(clockInterval);
+  function tick() {
+    const now = new Date();
+    const timeEl = document.getElementById('topbar-time');
+    const dateEl = document.getElementById('topbar-date');
+    if (timeEl) timeEl.textContent = now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
+    if (dateEl) dateEl.textContent = now.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+  }
+  tick();
+  clockInterval = setInterval(tick, 1000);
+}
+
+function getRegistrationTarget() {
+  // Read day and time from the dropdowns
+  const dayName  = document.getElementById('reg-day')?.value  || 'Thursday';
+  const timeStr  = document.getElementById('reg-time')?.value || '09:00 PM';
+
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const now  = new Date();
+
+  // Parse the time string (e.g. "09:00 PM")
+  const [timePart, ampm] = timeStr.split(' ');
+  let [hh, mm] = timePart.split(':').map(Number);
+  if (ampm === 'PM' && hh !== 12) hh += 12;
+  if (ampm === 'AM' && hh === 12) hh = 0;
+
+  // Find next occurrence of that weekday
+  const targetDay = days.indexOf(dayName);
+  let diff = targetDay - now.getDay();
+  if (diff < 0) diff += 7;
+  // If same day but time has already passed, go to next week
+  if (diff === 0) {
+    const todayTarget = new Date(now);
+    todayTarget.setHours(hh, mm, 0, 0);
+    if (todayTarget <= now) diff = 7;
+  }
+
+  const target = new Date(now);
+  target.setDate(now.getDate() + diff);
+  target.setHours(hh, mm, 0, 0);
+  return target;
+}
+
+function startCountdown() {
+  if (countdownInterval) clearInterval(countdownInterval);
+  startClock();
+
+  function tick() {
+    const now    = new Date();
+    const target = getRegistrationTarget();
+    let   secs   = Math.max(0, Math.floor((target - now) / 1000));
+
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+
+    const hEl = document.getElementById('cd-hours');
+    const mEl = document.getElementById('cd-mins');
+    const sEl = document.getElementById('cd-secs');
+    if (hEl) hEl.textContent = String(h).padStart(2,'0');
+    if (mEl) mEl.textContent = String(m).padStart(2,'0');
+    if (sEl) sEl.textContent = String(s).padStart(2,'0');
+  }
+  tick();
+  countdownInterval = setInterval(tick, 1000);
+}
+
+function saveSettings() {
+  showToast('✅ Settings saved successfully!', 'success');
+}
+
+// ── ADMIN PAGE ────────────────────────────────────────────────────────────────
+function renderAdmin() {
+  // Stats
+  const grid = document.getElementById('users-grid');
+  grid.innerHTML = '';
+  USERS.forEach(u => {
+    const sm = STATUS_META[u.status];
+    const card = document.createElement('div');
+    card.className = `user-card ${u.active ? '' : 'inactive'}`;
+    card.innerHTML = `
+      <div class="user-card-avatar">${u.avatar}</div>
+      <div class="user-card-info">
+        <div class="user-card-name">${u.name}</div>
+        <div class="user-card-email">${u.email} · ${u.category}</div>
+      </div>
+      <div class="user-card-meta">
+        <span class="status-pill ${sm.cls}">${sm.icon} ${sm.label}</span>
+        <div class="user-card-slots">
+          ${u.slots.map((s,i) => `Choice ${i+1}: ${s.day} ${s.time}`).join('<br>')}
+        </div>
+      </div>
+      <div class="user-card-actions">
+        <button class="btn-icon" title="${u.active ? 'Deactivate' : 'Activate'}" onclick="toggleUser(${u.id})">${u.active ? '⏸' : '▶️'}</button>
+        <button class="btn-icon danger" title="Remove user" onclick="removeUser(${u.id})">🗑</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  // System status
+  const statusEl = document.getElementById('system-status');
+  statusEl.innerHTML = '';
+  USERS.forEach(u => {
+    const sm = STATUS_META[u.status];
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding: 12px 16px; background: var(--dark-3); border-radius: 8px;';
+    row.innerHTML = `
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div class="user-avatar" style="width:30px;height:30px;font-size:12px;">${u.avatar}</div>
+        <span style="font-size:14px;">${u.name}</span>
+      </div>
+      <span class="status-pill ${sm.cls}">${sm.icon} ${sm.label}</span>
+    `;
+    statusEl.appendChild(row);
+  });
+}
+
+function toggleUser(id) {
+  const u = USERS.find(u => u.id === id);
+  if (u) {
+    u.active = !u.active;
+    u.status = u.active ? 'scheduled' : 'inactive';
+    renderAdmin();
+    showToast(`${u.name} ${u.active ? 'activated' : 'deactivated'}`, u.active ? 'success' : '');
+  }
+}
+
+function removeUser(id) {
+  const idx = USERS.findIndex(u => u.id === id);
+  if (idx > -1) {
+    const name = USERS[idx].name;
+    USERS.splice(idx, 1);
+    renderAdmin();
+    showToast(`${name} removed`, 'error');
+  }
+}
+
+function showAddUser() { document.getElementById('add-user-modal').classList.add('active'); }
+function hideAddUser()  { document.getElementById('add-user-modal').classList.remove('active'); }
+
+function addUser() {
+  const name  = document.getElementById('new-user-name').value.trim();
+  const email = document.getElementById('new-user-email').value.trim();
+  const cat   = document.getElementById('new-user-category').value;
+  if (!name || !email) { showToast('Please fill in all fields', 'error'); return; }
+  USERS.push({
+    id: USERS.length + 1,
+    name, email,
+    avatar: name[0].toUpperCase(),
+    category: cat,
+    active: true,
+    status: 'scheduled',
+    slots: [{ day:'Saturday', time:'08:00 PM' }],
+  });
+  hideAddUser();
+  renderAdmin();
+  showToast(`${name} added successfully!`, 'success');
+  document.getElementById('new-user-name').value = '';
+  document.getElementById('new-user-email').value = '';
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+</script>
+</body>
+</html>
+<script>
+// ── GITHUB INTEGRATION ────────────────────────────────────────────────────────
+// This section handles reading/writing configs from GitHub
+const GITHUB_REPO  = "gg230031/phoenix-cricket";
+const GITHUB_BRANCH = "main";
+
+async function fetchFromGitHub(path, token) {
+  const res = await fetch(
+    `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}`,
+    { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json" } }
+  );
+  if (!res.ok) throw new Error(`GitHub fetch failed: ${res.status}`);
+  const data = await res.json();
+  return JSON.parse(atob(data.content));
+}
+
+async function pushToGitHub(path, content, message, token) {
+  // Get current SHA
+  const res = await fetch(
+    `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}`,
+    { headers: { Authorization: `token ${token}` } }
+  );
+  const existing = await res.json();
+  const sha = existing.sha;
+
+  await fetch(
+    `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}`,
+    {
+      method: "PUT",
+      headers: { Authorization: `token ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        content: btoa(JSON.stringify(content, null, 2)),
+        sha,
+        branch: GITHUB_BRANCH,
+      }),
+    }
+  );
+}
+</script>
