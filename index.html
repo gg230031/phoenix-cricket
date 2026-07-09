@@ -737,6 +737,27 @@
   </div>
 </div>
 
+<!-- ── WORKFLOW INSTRUCTIONS MODAL ── -->
+<div class="modal-overlay" id="workflow-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title">
+      <div class="card-icon">✅</div>
+      User Created! One Manual Step Required
+    </div>
+    <div style="background:rgba(46,204,113,0.08);border:1px solid rgba(46,204,113,0.2);border-radius:8px;padding:14px;font-size:13px;color:#2ecc71;margin-bottom:20px;">
+      ✅ Config, status and security all set up automatically!
+    </div>
+    <p style="font-size:14px;color:var(--text-2);margin-bottom:16px;line-height:1.6;">
+      You need to create one workflow file on GitHub to schedule this user's bot. Copy the steps below:
+    </p>
+    <div style="background:var(--dark-3);border:1px solid var(--dark-4);border-radius:8px;padding:16px;font-size:13px;line-height:1.8;color:var(--text);" id="workflow-instructions">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-save" style="flex:1" onclick="hideWorkflowInstructions()">Got it! I'll do this now</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── ADD USER MODAL ── -->
 <div class="modal-overlay" id="add-user-modal">
   <div class="modal">
@@ -1245,6 +1266,28 @@ async function removeUser(userId) {
 function showAddUser() { document.getElementById('add-user-modal').classList.add('active'); }
 function hideAddUser()  { document.getElementById('add-user-modal').classList.remove('active'); }
 
+function showWorkflowInstructions(name, userId, secretName) {
+  const instructions = document.getElementById('workflow-instructions');
+  instructions.innerHTML = `
+    <b>Step 1:</b> Go to <a href="https://github.com/gg230031/phoenix-cricket/blob/main/.github/workflows/user1.yml" target="_blank" style="color:var(--fire-2)">GitHub → .github/workflows/user1.yml</a><br>
+    <b>Step 2:</b> Click "Copy raw contents" (copy icon top right)<br>
+    <b>Step 3:</b> Go to <a href="https://github.com/gg230031/phoenix-cricket/new/main/.github/workflows" target="_blank" style="color:var(--fire-2)">GitHub → Create new file in .github/workflows/</a><br>
+    <b>Step 4:</b> Name it: <code style="background:var(--dark-4);padding:2px 6px;border-radius:4px">${userId}.yml</code><br>
+    <b>Step 5:</b> Paste the copied content and change these 3 lines:<br><br>
+    <code style="background:var(--dark-4);padding:8px;border-radius:6px;display:block;line-height:2">
+    name: Phoenix Bot - <b style="color:var(--fire-2)">${name}</b><br>
+    CRICJOIN_PASSWORD: $\{{ secrets.<b style="color:var(--fire-2)">${secretName}</b> }}<br>
+    python bot/phoenix_bot.py configs/<b style="color:var(--fire-2)">${userId}.json</b>
+    </code><br>
+    <b>Step 6:</b> Click "Commit changes" ✅
+  `;
+  document.getElementById('workflow-modal').classList.add('active');
+}
+
+function hideWorkflowInstructions() {
+  document.getElementById('workflow-modal').classList.remove('active');
+}
+
 async function createUser() {
   const name     = document.getElementById('new-name').value.trim();
   const email    = document.getElementById('new-email').value.trim();
@@ -1254,7 +1297,7 @@ async function createUser() {
   if (!name || !email || !password) { showToast('Please fill in all fields', 'error'); return; }
 
   try {
-    showLoading('Creating user (1/5): Adding to registry...');
+    showLoading('Creating user (1/4): Adding to registry...');
     const pwdHash  = await sha256(password);
     const registry = await ghRead('configs/users_registry.json');
     const userId   = `user${Date.now()}`;
@@ -1269,7 +1312,7 @@ async function createUser() {
     await ghWrite('configs/users_registry.json', registry, `Phoenix: Add user ${name}`);
 
     // Step 2: Create config file
-    document.getElementById('loading-text').textContent = 'Creating user (2/5): Setting up config...';
+    document.getElementById('loading-text').textContent = 'Creating user (2/4): Setting up config...';
     const newConfig = {
       user_id: userId, name, email,
       cricjoin_email: email, cricjoin_password: '',
@@ -1286,70 +1329,15 @@ async function createUser() {
     await ghCreate(`configs/${userId}.json`, JSON.stringify(newConfig, null, 2), `Phoenix: Create config for ${name}`);
 
     // Step 3: Create status file
-    document.getElementById('loading-text').textContent = 'Creating user (3/5): Setting up status...';
+    document.getElementById('loading-text').textContent = 'Creating user (3/4): Setting up status...';
     await ghCreate(`status/${userId}_status.json`, JSON.stringify({
       user_id: userId, status: 'idle',
       last_run: '', last_result: '', next_run: '',
       message: 'Not yet run', slot_info: '',
     }, null, 2), `Phoenix: Create status for ${name}`);
 
-    // Step 4: Create workflow file from template
-    document.getElementById('loading-text').textContent = 'Creating user (4/5): Setting up bot schedule...';
-    const workflowContent = `name: Phoenix Bot - ${name}
-
-on:
-  schedule:
-    - cron: '25 15 * * 4'
-
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-jobs:
-  run-bot:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          pip install selenium webdriver-manager
-
-      - name: Install Chrome
-        run: |
-          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
-
-      - name: Run Phoenix Bot
-        env:
-          CRICJOIN_PASSWORD: \${{ secrets.${secretName} }}
-          GH_TOKEN: \${{ secrets.GH_TOKEN }}
-        run: |
-          python bot/phoenix_bot.py configs/${userId}.json
-
-      - name: Commit status update
-        if: always()
-        run: |
-          git config --global user.email "phoenix-bot@github.com"
-          git config --global user.name "Phoenix Bot"
-          git add status/${userId}_status.json configs/${userId}.json .github/workflows/${userId}.yml
-          git diff --staged --quiet || git commit -m "Phoenix: Update ${userId} status & schedule"
-          git push
-`;
-    await ghCreate(`.github/workflows/${userId}.yml`, workflowContent, `Phoenix: Create workflow for ${name}`);
-
-    // Step 5: Create placeholder GitHub Secret (empty — user will set CricJoin password)
-    document.getElementById('loading-text').textContent = 'Creating user (5/5): Setting up security...';
+    // Step 4: Create placeholder GitHub Secret
+    document.getElementById('loading-text').textContent = 'Creating user (4/4): Setting up security...';
     try {
       await ghCreateSecret(secretName, 'PLACEHOLDER_SET_BY_USER');
     } catch(e) {
@@ -1359,7 +1347,9 @@ jobs:
 
     hideAddUser();
     hideLoading();
-    showToast(`${name} created successfully! 🎉`, 'success');
+
+    // Show manual workflow instructions
+    showWorkflowInstructions(name, userId, secretName);
 
     document.getElementById('new-name').value     = '';
     document.getElementById('new-email').value    = '';
