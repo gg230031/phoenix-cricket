@@ -1,8 +1,9 @@
 {
   "user_id": "user1",
-  "status": "idle",
-  "last_run": "",
-  "last_result": "",
+  "status": "success",
+  "last_run": "2026-07-09 19:12:44",
+  "last_result": "success",
   "next_run": "",
-  "message": "Not yet run"
+  "message": "Registered! \u00f0\u0178\u008f\u008f Slot: Sunday Evening at Ptks\nJul 12, 2026 at 5:00 PM - 7:00 PM IST\n1 / 27 members\nView",
+  "slot_info": "Sunday Evening at Ptks\nJul 12, 2026 at 5:00 PM - 7:00 PM IST\n1 / 27 members\nView Members\nJoin"
 }
