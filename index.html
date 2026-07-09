@@ -668,11 +668,21 @@
           <button class="category-btn"        id="cat-girls" onclick="setCategory('girls')">🏏 Girls</button>
         </div>
       </div>
-      <div class="form-group" style="margin-bottom:0">
+      <div class="form-group">
         <label>Mood Poll Answer</label>
         <select id="poll-answer">
           <option>Excellent</option><option>Good</option>
           <option>Okay</option><option>Not great</option><option>Poor</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Check Interval (seconds)</label>
+        <select id="check-interval">
+          <option value="0.1">0.1s — Fastest (10x/sec)</option>
+          <option value="0.2">0.2s — Very Fast (5x/sec)</option>
+          <option value="0.5" selected>0.5s — Fast (2x/sec)</option>
+          <option value="1.0">1.0s — Normal (1x/sec)</option>
+          <option value="2.0">2.0s — Slow</option>
         </select>
       </div>
     </div>
@@ -956,6 +966,10 @@ async function loadUserPage(user) {
     // Poll answer
     setSelectValue('poll-answer', currentConfig.poll_answer || 'Excellent');
 
+    // Check interval
+    const interval = String(currentConfig.check_interval_seconds || '0.5');
+    setSelectValue('check-interval', interval);
+
     updateNextRun();
     startClock();
     startCountdown();
@@ -970,19 +984,28 @@ async function loadUserPage(user) {
 
 function renderStatusBanner(status) {
   const map = {
-    idle:      { cls:'idle',      icon:'💤', title:'Not yet run',          desc:'Your bot has not run yet.' },
-    scheduled: { cls:'scheduled', icon:'🕐', title:'Scheduled',            desc:'Bot is scheduled and ready to run.' },
-    running:   { cls:'running',   icon:'⚡', title:'Running',              desc:'Bot is currently running!' },
-    success:   { cls:'success',   icon:'✅', title:'Registered!',          desc:'Successfully registered for the slot 🏏' },
-    failed:    { cls:'failed',    icon:'❌', title:'Failed',               desc:'Bot encountered an issue. Check GitHub Actions.' },
+    idle:      { cls:'idle',      icon:'💤', title:'Not yet run',    desc:'Your bot has not run yet.' },
+    scheduled: { cls:'scheduled', icon:'🕐', title:'Scheduled',      desc:'Bot is scheduled and ready to run.' },
+    running:   { cls:'running',   icon:'⚡', title:'Running',        desc:'Bot is currently running!' },
+    success:   { cls:'success',   icon:'✅', title:'Registered! 🏏', desc:'Successfully registered for the slot!' },
+    failed:    { cls:'failed',    icon:'❌', title:'Failed',         desc:'Bot encountered an issue. Check GitHub Actions.' },
   };
 
-  const s   = map[status?.status] || map['idle'];
+  const s      = map[status?.status] || map['idle'];
   const banner = document.getElementById('status-banner');
   banner.className = `status-banner ${s.cls}`;
-  banner.querySelector('.status-dot').textContent   = s.icon;
+  banner.querySelector('.status-dot').textContent = s.icon;
   document.getElementById('status-title').textContent = s.title;
-  document.getElementById('status-desc').textContent  = status?.message || s.desc;
+
+  // Show slot info if available
+  let desc = status?.message || s.desc;
+  if (status?.status === 'success' && status?.slot_info) {
+    desc = `✅ ${status.slot_info.substring(0, 100)}`;
+  }
+  if (status?.last_run) {
+    desc += ` · Last run: ${status.last_run}`;
+  }
+  document.getElementById('status-desc').textContent = desc;
 }
 
 function renderSlotChoices() {
@@ -1045,7 +1068,8 @@ async function saveSettings() {
     currentConfig.registration_time = regTime;
     currentConfig.slot_choices      = choices;
     currentConfig.category          = selectedCategory;
-    currentConfig.poll_answer       = document.getElementById('poll-answer').value;
+    currentConfig.poll_answer            = document.getElementById('poll-answer').value;
+    currentConfig.check_interval_seconds = parseFloat(document.getElementById('check-interval').value);
     currentConfig.cricjoin_email    = document.getElementById('cricjoin-email').value;
 
     const newPwd = document.getElementById('cricjoin-password').value;
