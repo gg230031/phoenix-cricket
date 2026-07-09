@@ -6,23 +6,44 @@
       "email": "guru0812@gmail.com",
       "password_hash": "0d320ae73e35417d9528839455f7ca97ace54c45f10068bc41e07529147afa2e",
       "active": true,
-      "is_admin": true
+      "is_admin": true,
+      "secret_name": "USER1_PASSWORD"
     },
     {
-      "user_id": "user1783567783134",
-      "name": "Landga AAOOOOO",
+      "user_id": "user2",
+      "name": "Rahul Samant",
       "email": "Rahul848@gmail.com",
       "password_hash": "51a17913cf689e4607d83cc4c457394002db72bcbca9512fbf74fd904960e0fd",
       "active": true,
-      "is_admin": false
+      "is_admin": false,
+      "secret_name": "USER2_PASSWORD"
     },
     {
-      "user_id": "user1783569315348",
-      "name": "Appa Saheb",
-      "email": "vedangs@gmail.com",
-      "password_hash": "58a7b73a4c2cbb2631f5d81b09084f1d0d745d24a8cf431434522f02c0cedf25",
-      "active": true,
-      "is_admin": false
+      "user_id": "user3",
+      "name": "",
+      "email": "",
+      "password_hash": "",
+      "active": false,
+      "is_admin": false,
+      "secret_name": "USER3_PASSWORD"
+    },
+    {
+      "user_id": "user4",
+      "name": "",
+      "email": "",
+      "password_hash": "",
+      "active": false,
+      "is_admin": false,
+      "secret_name": "USER4_PASSWORD"
+    },
+    {
+      "user_id": "user5",
+      "name": "",
+      "email": "",
+      "password_hash": "",
+      "active": false,
+      "is_admin": false,
+      "secret_name": "USER5_PASSWORD"
     }
   ]
 }
