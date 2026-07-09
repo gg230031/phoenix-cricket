@@ -692,6 +692,7 @@
 
   <div class="save-bar">
     <div class="save-bar-text" id="save-bar-text">Changes will be saved to your profile</div>
+    <button class="btn-nav" id="run-bot-btn" onclick="runBotNow()" style="padding:12px 20px">▶ Run Bot Now</button>
     <button class="btn-save" id="save-btn" onclick="saveSettings()">Save Settings</button>
   </div>
 </div>
@@ -818,6 +819,39 @@ async function ghWrite(path, content, message) {
   return data;
 }
 
+async function ghCreate(path, content, message) {
+  const res = await fetch(GITHUB_FN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'create', path, content, message }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function ghCreateSecret(secretName, secretValue) {
+  const res = await fetch(GITHUB_FN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'create_secret', secret_name: secretName, secret_value: secretValue }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function ghTriggerWorkflow(userId) {
+  const res = await fetch(GITHUB_FN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'trigger_workflow', user_id: userId }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 //  AUTH
 // ══════════════════════════════════════════════════════════════════════════════
@@ -892,6 +926,18 @@ function logout() {
   document.getElementById('login-btn').textContent = 'Sign in to Phoenix';
   document.getElementById('login-btn').disabled    = false;
   showPage('login-page');
+}
+
+async function runBotNow() {
+  try {
+    showLoading('Triggering bot run...');
+    await ghTriggerWorkflow(currentUser.user_id);
+    hideLoading();
+    showToast('🚀 Bot triggered! Check status in a few minutes.', 'success');
+  } catch(e) {
+    hideLoading();
+    showToast('Error triggering bot: ' + e.message, 'error');
+  }
 }
 
 async function goToMySettings() {
@@ -1081,7 +1127,17 @@ async function saveSettings() {
     currentConfig.cricjoin_email    = document.getElementById('cricjoin-email').value;
 
     const newPwd = document.getElementById('cricjoin-password').value;
-    if (newPwd) currentConfig.cricjoin_password = newPwd;
+    if (newPwd) {
+      currentConfig.cricjoin_password = newPwd;
+      // Also create/update GitHub Secret for this user's CricJoin password
+      try {
+        const secretName = currentConfig.secret_name || `${currentUser.user_id.toUpperCase()}_PASSWORD`;
+        await ghCreateSecret(secretName, newPwd);
+        log('✅ GitHub Secret updated for CricJoin password');
+      } catch(e) {
+        console.log('Secret update note:', e.message);
+      }
+    }
 
     await ghWrite(
       `configs/${currentUser.user_id}.json`,
@@ -1092,6 +1148,8 @@ async function saveSettings() {
     hideLoading();
     showToast('✅ Settings saved successfully!', 'success');
     document.getElementById('cricjoin-password').value = '';
+    // Update placeholder to show password is saved
+    document.getElementById('cricjoin-password').placeholder = '•••••••• (saved — leave blank to keep)';
 
   } catch(e) {
     hideLoading();
@@ -1196,37 +1254,108 @@ async function createUser() {
   if (!name || !email || !password) { showToast('Please fill in all fields', 'error'); return; }
 
   try {
-    showLoading('Creating user...');
+    showLoading('Creating user (1/5): Adding to registry...');
     const pwdHash  = await sha256(password);
     const registry = await ghRead('configs/users_registry.json');
     const userId   = `user${Date.now()}`;
+    const secretName = `${userId.toUpperCase()}_PASSWORD`;
 
-    // Add to registry
+    // Step 1: Add to registry
     registry.users.push({
       user_id: userId, name, email,
       password_hash: pwdHash, active: true, is_admin: false,
+      secret_name: secretName,
     });
     await ghWrite('configs/users_registry.json', registry, `Phoenix: Add user ${name}`);
 
-    // Create config file
+    // Step 2: Create config file
+    document.getElementById('loading-text').textContent = 'Creating user (2/5): Setting up config...';
     const newConfig = {
       user_id: userId, name, email,
       cricjoin_email: email, cricjoin_password: '',
       active: true, category,
       poll_answer: 'Excellent',
+      check_interval_seconds: 0.5,
       registration_day: 'Thursday', registration_time: '19:00',
       next_registration_date: '',
       slot_choices: [{ slot_day: 'Saturday', slot_time: '20:00' }],
       login_url: 'https://cricjoin.com/login',
       forms_url: 'https://cricjoin.com/my-cricket',
+      secret_name: secretName,
     };
-    await ghWrite(`configs/${userId}.json`, newConfig, `Phoenix: Create config for ${name}`);
+    await ghCreate(`configs/${userId}.json`, JSON.stringify(newConfig, null, 2), `Phoenix: Create config for ${name}`);
 
-    // Create status file
-    await ghWrite(`status/${userId}_status.json`, {
+    // Step 3: Create status file
+    document.getElementById('loading-text').textContent = 'Creating user (3/5): Setting up status...';
+    await ghCreate(`status/${userId}_status.json`, JSON.stringify({
       user_id: userId, status: 'idle',
-      last_run: '', last_result: '', next_run: '', message: 'Not yet run',
-    }, `Phoenix: Create status for ${name}`);
+      last_run: '', last_result: '', next_run: '',
+      message: 'Not yet run', slot_info: '',
+    }, null, 2), `Phoenix: Create status for ${name}`);
+
+    // Step 4: Create workflow file from template
+    document.getElementById('loading-text').textContent = 'Creating user (4/5): Setting up bot schedule...';
+    const workflowContent = `name: Phoenix Bot - ${name}
+
+on:
+  schedule:
+    - cron: '25 15 * * 4'
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install selenium webdriver-manager
+
+      - name: Install Chrome
+        run: |
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Run Phoenix Bot
+        env:
+          CRICJOIN_PASSWORD: \${{ secrets.${secretName} }}
+          GH_TOKEN: \${{ secrets.GH_TOKEN }}
+        run: |
+          python bot/phoenix_bot.py configs/${userId}.json
+
+      - name: Commit status update
+        if: always()
+        run: |
+          git config --global user.email "phoenix-bot@github.com"
+          git config --global user.name "Phoenix Bot"
+          git add status/${userId}_status.json configs/${userId}.json .github/workflows/${userId}.yml
+          git diff --staged --quiet || git commit -m "Phoenix: Update ${userId} status & schedule"
+          git push
+`;
+    await ghCreate(`.github/workflows/${userId}.yml`, workflowContent, `Phoenix: Create workflow for ${name}`);
+
+    // Step 5: Create placeholder GitHub Secret (empty — user will set CricJoin password)
+    document.getElementById('loading-text').textContent = 'Creating user (5/5): Setting up security...';
+    try {
+      await ghCreateSecret(secretName, 'PLACEHOLDER_SET_BY_USER');
+    } catch(e) {
+      console.log('Secret creation note:', e.message);
+      // Non-fatal — user can set CricJoin password from their dashboard
+    }
 
     hideAddUser();
     hideLoading();
