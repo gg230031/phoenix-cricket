@@ -8,12 +8,21 @@
   "category": "boys",
   "poll_answer": "Excellent",
   "registration_day": "Thursday",
-  "registration_time": "19:00",
+  "registration_time": "21:00",
   "next_registration_date": "",
   "slot_choices": [
-    { "slot_day": "Saturday", "slot_time": "20:00" },
-    { "slot_day": "Sunday",   "slot_time": "07:00" },
-    { "slot_day": "Sunday",   "slot_time": "11:00" }
+    {
+      "slot_day": "Saturday",
+      "slot_time": "20:00"
+    },
+    {
+      "slot_day": "Sunday",
+      "slot_time": "07:00"
+    },
+    {
+      "slot_day": "Sunday",
+      "slot_time": "11:00"
+    }
   ],
   "login_url": "https://cricjoin.com/login",
   "forms_url": "https://cricjoin.com/my-cricket"
