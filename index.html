@@ -1288,6 +1288,15 @@ function hideWorkflowInstructions() {
   document.getElementById('workflow-modal').classList.remove('active');
 }
 
+async function getNextAvailableSlot(registry) {
+  // Find next available placeholder slot (user2-user5)
+  const usedIds = registry.users.map(u => u.user_id);
+  for (let i = 2; i <= 5; i++) {
+    if (!usedIds.includes(`user${i}`)) return `user${i}`;
+  }
+  return null;
+}
+
 async function createUser() {
   const name     = document.getElementById('new-name').value.trim();
   const email    = document.getElementById('new-email').value.trim();
@@ -1297,22 +1306,38 @@ async function createUser() {
   if (!name || !email || !password) { showToast('Please fill in all fields', 'error'); return; }
 
   try {
-    showLoading('Creating user (1/4): Adding to registry...');
+    showLoading('Creating user (1/3): Checking available slots...');
     const pwdHash  = await sha256(password);
     const registry = await ghRead('configs/users_registry.json');
-    const userId   = `user${Date.now()}`;
+
+    // Get next available placeholder slot
+    const userId = await getNextAvailableSlot(registry);
+    if (!userId) {
+      hideLoading();
+      showToast('Maximum 5 users reached!', 'error');
+      return;
+    }
+
     const secretName = `${userId.toUpperCase()}_PASSWORD`;
 
-    // Step 1: Add to registry
-    registry.users.push({
+    // Step 1: Update registry
+    showLoading('Creating user (1/3): Updating registry...');
+    // Check if user already exists in registry (placeholder)
+    const existingIdx = registry.users.findIndex(u => u.user_id === userId);
+    const newUserEntry = {
       user_id: userId, name, email,
       password_hash: pwdHash, active: true, is_admin: false,
       secret_name: secretName,
-    });
+    };
+    if (existingIdx >= 0) {
+      registry.users[existingIdx] = newUserEntry;
+    } else {
+      registry.users.push(newUserEntry);
+    }
     await ghWrite('configs/users_registry.json', registry, `Phoenix: Add user ${name}`);
 
-    // Step 2: Create config file
-    document.getElementById('loading-text').textContent = 'Creating user (2/4): Setting up config...';
+    // Step 2: Update config placeholder
+    document.getElementById('loading-text').textContent = 'Creating user (2/3): Setting up config...';
     const newConfig = {
       user_id: userId, name, email,
       cricjoin_email: email, cricjoin_password: '',
@@ -1326,30 +1351,19 @@ async function createUser() {
       forms_url: 'https://cricjoin.com/my-cricket',
       secret_name: secretName,
     };
-    await ghCreate(`configs/${userId}.json`, JSON.stringify(newConfig, null, 2), `Phoenix: Create config for ${name}`);
+    await ghWrite(`configs/${userId}.json`, JSON.stringify(newConfig, null, 2), `Phoenix: Setup ${name}`);
 
-    // Step 3: Create status file
-    document.getElementById('loading-text').textContent = 'Creating user (3/4): Setting up status...';
-    await ghCreate(`status/${userId}_status.json`, JSON.stringify({
+    // Step 3: Update status placeholder
+    document.getElementById('loading-text').textContent = 'Creating user (3/3): Setting up status...';
+    await ghWrite(`status/${userId}_status.json`, JSON.stringify({
       user_id: userId, status: 'idle',
       last_run: '', last_result: '', next_run: '',
       message: 'Not yet run', slot_info: '',
-    }, null, 2), `Phoenix: Create status for ${name}`);
-
-    // Step 4: Create placeholder GitHub Secret
-    document.getElementById('loading-text').textContent = 'Creating user (4/4): Setting up security...';
-    try {
-      await ghCreateSecret(secretName, 'PLACEHOLDER_SET_BY_USER');
-    } catch(e) {
-      console.log('Secret creation note:', e.message);
-      // Non-fatal — user can set CricJoin password from their dashboard
-    }
+    }, null, 2), `Phoenix: Setup status for ${name}`);
 
     hideAddUser();
     hideLoading();
-
-    // Show manual workflow instructions
-    showWorkflowInstructions(name, userId, secretName);
+    showToast(`${name} created successfully! 🎉`, 'success');
 
     document.getElementById('new-name').value     = '';
     document.getElementById('new-email').value    = '';
