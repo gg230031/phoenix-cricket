@@ -3,7 +3,7 @@
   "name": "Guru",
   "email": "guru0812@gmail.com",
   "cricjoin_email": "guru0812@gmail.com",
-  "cricjoin_password": "",
+  "cricjoin_password": "password1234",
   "active": true,
   "category": "boys",
   "poll_answer": "Excellent",
