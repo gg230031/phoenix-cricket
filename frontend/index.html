@@ -887,6 +887,8 @@ async function goToMySettings() {
   // Admin navigating to their personal settings
   await loadUserPage(currentUser);
   showPage('user-page');
+  // Force hide loading overlay
+  document.getElementById('loading-overlay').classList.remove('active');
   // Show the Admin Panel button in user topbar
   const adminBtn = document.getElementById('admin-panel-btn');
   if (adminBtn) adminBtn.style.display = 'block';
