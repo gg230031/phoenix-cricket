@@ -4,7 +4,7 @@
       "user_id": "user1",
       "name": "Guru",
       "email": "guru0812@gmail.com",
-      "password_hash": "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
+      "password_hash": "0d320ae73e35417d9528839455f7ca97ace54c45f10068bc41e07529147afa2e",
       "active": true,
       "is_admin": true
     }
