@@ -15,6 +15,14 @@
       "password_hash": "51a17913cf689e4607d83cc4c457394002db72bcbca9512fbf74fd904960e0fd",
       "active": true,
       "is_admin": false
+    },
+    {
+      "user_id": "user1783569315348",
+      "name": "Appa Saheb",
+      "email": "vedangs@gmail.com",
+      "password_hash": "58a7b73a4c2cbb2631f5d81b09084f1d0d745d24a8cf431434522f02c0cedf25",
+      "active": true,
+      "is_admin": false
     }
   ]
 }
