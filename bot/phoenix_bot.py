@@ -16,6 +16,8 @@ import re
 import time
 from datetime import datetime, timedelta
 
+print("🔥  Phoenix Bot starting...", flush=True)
+
 # ── Selenium ──────────────────────────────────────────────────────────────────
 try:
     from selenium import webdriver
@@ -28,8 +30,9 @@ try:
         NoSuchElementException, TimeoutException, ElementClickInterceptedException
     )
     from webdriver_manager.chrome import ChromeDriverManager
-except ImportError:
-    print("❌  Missing selenium. Run: pip install selenium webdriver-manager")
+    print("✅  Selenium imported successfully", flush=True)
+except ImportError as e:
+    print(f"❌  Missing selenium: {e}")
     sys.exit(1)
 
 
@@ -38,7 +41,7 @@ except ImportError:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def log(msg):
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
 def normalize(text):
@@ -65,7 +68,7 @@ def is_slot_full(slot_text):
 
 def slot_matches(card_text, slot_day, slot_time):
     card     = normalize(card_text)
-    day_ok   = (not slot_day)  or (normalize(slot_day) in card)
+    day_ok   = (not slot_day) or (normalize(slot_day) in card)
     if slot_time:
         target_24 = time_to_24h(slot_time)
         time_ok   = (target_24 in card) or (normalize(slot_time) in card)
@@ -80,7 +83,6 @@ def slot_matches(card_text, slot_day, slot_time):
 
 
 def advance_next_date(cfg):
-    """Move next_registration_date forward by 7 days."""
     current = cfg.get("next_registration_date", "")
     if current:
         try:
@@ -100,7 +102,7 @@ def load_config(config_file):
         with open(config_file) as f:
             return json.load(f)
     except Exception as e:
-        print(f"❌  Cannot load {config_file}: {e}")
+        print(f"❌  Cannot load {config_file}: {e}", flush=True)
         sys.exit(1)
 
 
@@ -131,22 +133,27 @@ def save_status(user_id, status, message, next_run=""):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def create_driver():
+    log("🌐  Setting up Chrome...")
     options = Options()
-    options.add_argument("--headless")
+    options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument("--password-store=basic")
+    options.add_argument("--remote-debugging-port=9222")
     prefs = {
         "credentials_enable_service": False,
         "profile.password_manager_enabled": False
     }
     options.add_experimental_option("prefs", prefs)
 
+    log("🔧  Installing ChromeDriver...")
     service = Service(ChromeDriverManager().install())
+    log("🚀  Launching Chrome...")
     driver  = webdriver.Chrome(service=service, options=options)
+    log("✅  Chrome launched successfully!")
     return driver
 
 
@@ -194,7 +201,7 @@ def wait_for_register_button(driver, cfg):
     interval = 1
     category = normalize(cfg.get("category", ""))
     attempt  = 0
-    max_attempts = 300  # 5 minutes max
+    max_attempts = 300
 
     log(f"\n🔄  Watching for Register button (max {max_attempts} attempts)...")
 
@@ -224,9 +231,9 @@ def wait_for_register_button(driver, cfg):
                 if category and category not in normalize(card_text):
                     continue
                 if is_slot_full(card_text):
+                    log(f"   Slot full, skipping: {card_text[:60].strip()}")
                     continue
 
-                # Check slot choices in order
                 for choice in cfg["slot_choices"]:
                     if slot_matches(card_text, choice.get("slot_day",""), choice.get("slot_time","")):
                         matched_btn = btn
@@ -248,7 +255,7 @@ def wait_for_register_button(driver, cfg):
                 return True
             else:
                 if attempt % 10 == 0:
-                    log(f"   Attempt {attempt}: Still waiting...")
+                    log(f"   Attempt {attempt}: Still waiting for slot to open...")
                 time.sleep(interval)
 
         except Exception as e:
@@ -370,12 +377,12 @@ def select_slot_and_register(driver, cfg):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    print("=" * 55)
-    print("       🔥  Phoenix Bot — Cloud Runner  🔥")
-    print("=" * 55)
+    print("=" * 55, flush=True)
+    print("       🔥  Phoenix Bot — Cloud Runner  🔥", flush=True)
+    print("=" * 55, flush=True)
 
     if len(sys.argv) < 2:
-        print("Usage: python bot/phoenix_bot.py configs/user1.json")
+        print("Usage: python bot/phoenix_bot.py configs/user1.json", flush=True)
         sys.exit(1)
 
     config_file = sys.argv[1]
@@ -391,6 +398,9 @@ def main():
     log(f"📧  Email   : {cfg['cricjoin_email']}")
     log(f"🏏  Category: {cfg['category']}")
     log(f"📅  Reg day : {cfg.get('registration_day','?')} at {cfg.get('registration_time','?')}")
+    log(f"🎯  Slot choices:")
+    for i, choice in enumerate(cfg["slot_choices"]):
+        log(f"    {i+1}. {choice.get('slot_day','?')} at {choice.get('slot_time','?')}")
 
     save_status(user_id, "running", "Bot started")
 
@@ -405,7 +415,6 @@ def main():
             registered = select_slot_and_register(driver, cfg)
 
             if registered:
-                # Advance next registration date by 7 days
                 advance_next_date(cfg)
                 save_config(cfg, config_file)
                 next_run = cfg.get("next_registration_date", "")
@@ -419,6 +428,8 @@ def main():
 
     except Exception as e:
         log(f"❌  Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
         save_status(user_id, "failed", f"Error: {str(e)}")
     finally:
         driver.quit()
