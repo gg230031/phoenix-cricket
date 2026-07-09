@@ -7,14 +7,6 @@
       "password_hash": "0d320ae73e35417d9528839455f7ca97ace54c45f10068bc41e07529147afa2e",
       "active": true,
       "is_admin": true
-    },
-    {
-      "user_id": "user1783567560261",
-      "name": "Rahul Samant",
-      "email": "Rahul848@gmail.com",
-      "password_hash": "51a17913cf689e4607d83cc4c457394002db72bcbca9512fbf74fd904960e0fd",
-      "active": true,
-      "is_admin": false
     }
   ]
 }
