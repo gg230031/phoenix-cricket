@@ -910,8 +910,16 @@ function showPage(id) {
 async function loadUserPage(user) {
   showLoading('Loading your settings...');
   try {
+    console.log('Loading config for:', user.user_id);
     currentConfig = await ghRead(`configs/${user.user_id}.json`);
-    const status  = await ghRead(`status/${user.user_id}_status.json`);
+    console.log('Config loaded:', currentConfig);
+
+    let status = { status: 'idle', message: 'Not yet run' };
+    try {
+      status = await ghRead(`status/${user.user_id}_status.json`);
+    } catch(e) {
+      console.log('Status file not found, using default');
+    }
 
     // Set avatar & name
     document.getElementById('user-avatar').textContent       = user.name[0].toUpperCase();
@@ -948,8 +956,11 @@ async function loadUserPage(user) {
     updateNextRun();
     startClock();
     startCountdown();
+    hideLoading();
 
   } catch(e) {
+    console.error('loadUserPage error:', e);
+    hideLoading();
     showToast('Error loading settings: ' + e.message, 'error');
   }
 }
