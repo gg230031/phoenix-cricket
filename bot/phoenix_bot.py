@@ -211,38 +211,83 @@ def wait_for_register_button(driver, cfg):
         time.sleep(2)
 
         try:
+            # Log page source snippet for debugging first attempt
+            if attempt == 1:
+                body_text = driver.find_element(By.TAG_NAME, "body").text
+                log(f"   Page content preview: {body_text[:300]}")
+
+            # Broad search — find ANY Register button on the page
+            # Try multiple XPath strategies
+            register_btns = []
+
+            # Strategy 1: exact text match
             register_btns = driver.find_elements(By.XPATH,
-                "//*[self::button or self::a]"
+                "//*[self::button or self::a or self::input]"
                 "[normalize-space(translate(text(),"
                 "'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'))='register']"
             )
 
+            # Strategy 2: contains text (broader)
+            if not register_btns:
+                register_btns = driver.find_elements(By.XPATH,
+                    "//*[self::button or self::a]"
+                    "[contains(translate(text(),"
+                    "'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'register')]"
+                )
+
+            # Strategy 3: button value attribute
+            if not register_btns:
+                register_btns = driver.find_elements(By.XPATH,
+                    "//input[@type='submit' and contains(translate(@value,"
+                    "'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'register')]"
+                )
+
+            if attempt == 1:
+                log(f"   Found {len(register_btns)} Register button(s) on page")
+
             matched_btn = None
             for btn in register_btns:
+                # Get surrounding context text
                 try:
-                    card = btn.find_element(By.XPATH,
-                        "./ancestor::div[contains(@class,'card') or "
-                        "contains(@class,'slot') or contains(@class,'form') or "
-                        "contains(@class,'item')][1]")
-                    card_text = card.text
+                    # Try to get parent container text
+                    parent = btn.find_element(By.XPATH, "./ancestor::*[self::div or self::li or self::tr][1]")
+                    card_text = parent.text
                 except NoSuchElementException:
                     card_text = btn.text
 
-                if category and category not in normalize(card_text):
-                    continue
+                if attempt == 1:
+                    log(f"   Button context: {card_text[:100]}")
+
+                # Check if slot is full
                 if is_slot_full(card_text):
                     log(f"   Slot full, skipping: {card_text[:60].strip()}")
                     continue
 
+                # Check category
+                if category and category not in normalize(card_text):
+                    # Try broader page context
+                    page_text = driver.find_element(By.TAG_NAME, "body").text
+                    if category not in normalize(page_text):
+                        continue
+
+                # Check slot choices — if no choices match, take first available
+                slot_matched = False
                 for choice in cfg["slot_choices"]:
                     if slot_matches(card_text, choice.get("slot_day",""), choice.get("slot_time","")):
-                        matched_btn = btn
-                        log(f"🟢  Attempt {attempt}: Register button found!")
-                        log(f"    Slot: {card_text[:80].strip()}")
+                        slot_matched = True
                         break
 
-                if matched_btn:
-                    break
+                # If no slot choice matches but we have a Register button, use it
+                # (the slot selection happens in the next step)
+                if not slot_matched and cfg["slot_choices"]:
+                    log(f"   Register button found but slot text doesn't match choices")
+                    log(f"   Card text: {card_text[:100]}")
+                    log(f"   Will proceed anyway — slot selection handled in form")
+
+                matched_btn = btn
+                log(f"🟢  Attempt {attempt}: Register button found!")
+                log(f"    Context: {card_text[:80].strip()}")
+                break
 
             if matched_btn:
                 driver.execute_script("arguments[0].scrollIntoView(true);", matched_btn)
