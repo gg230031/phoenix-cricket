@@ -1,0 +1,49 @@
+name: Phoenix Bot - User2
+
+on:
+  schedule:
+    - cron: '25 15 * * 4'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install selenium webdriver-manager
+
+      - name: Install Chrome
+        run: |
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Run Phoenix Bot
+        env:
+          CRICJOIN_PASSWORD: ${{ secrets.USER2_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          python bot/phoenix_bot.py configs/user2.json
+
+      - name: Commit status update
+        if: always()
+        run: |
+          git config --global user.email "phoenix-bot@github.com"
+          git config --global user.name "Phoenix Bot"
+          git add status/user2_status.json configs/user2.json .github/workflows/user2.yml
+          git diff --staged --quiet || git commit -m "Phoenix: Update user2 status & schedule"
+          git push
