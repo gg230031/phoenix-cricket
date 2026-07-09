@@ -23,6 +23,15 @@
       "password_hash": "58a7b73a4c2cbb2631f5d81b09084f1d0d745d24a8cf431434522f02c0cedf25",
       "active": true,
       "is_admin": false
+    },
+    {
+      "user_id": "user1783629073525",
+      "name": "NewUser",
+      "email": "Nuser@gmail.com",
+      "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "active": true,
+      "is_admin": false,
+      "secret_name": "USER1783629073525_PASSWORD"
     }
   ]
 }
