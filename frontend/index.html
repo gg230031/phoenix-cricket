@@ -927,10 +927,10 @@
     <button class="btn-primary" onclick="doLogin()">Sign in to Phoenix</button>
 
     <div class="login-demo">
-      <div class="demo-label">Preview as</div>
+      <div class="demo-label">Demo preview only</div>
       <div class="demo-btns">
-        <button class="btn-demo" onclick="loginAs('user')">👤 User</button>
-        <button class="btn-demo" onclick="loginAs('admin')">⚡ Admin</button>
+        <button class="btn-demo" onclick="loginAs('user')">👤 User view</button>
+        <button class="btn-demo" onclick="loginAs('admin')">⚡ Admin view</button>
       </div>
     </div>
   </div>
@@ -1245,6 +1245,21 @@
 
 <script>
 // ── DATA ──────────────────────────────────────────────────────────────────────
+
+// Phoenix user registry (synced from GitHub configs/users_registry.json)
+const PHOENIX_REGISTRY = {
+  "users": [
+    {
+      "user_id": "user1",
+      "name": "Guru",
+      "email": "guru0812@gmail.com",
+      "password_hash": "0d320ae73e35417d9528839455f7ca97ace54c45f10068bc41e07529147afa2e",
+      "active": true,
+      "is_admin": true
+    }
+  ]
+};
+
 const USERS = [
   { id:1, name:'Guru',    email:'guru0812@gmail.com',    avatar:'G', category:'Boys', active:true,  status:'scheduled', slots:[{day:'Saturday',time:'08:00 PM'},{day:'Sunday',time:'07:00 AM'}] },
   { id:2, name:'Rahul',   email:'rahul@gmail.com',       avatar:'R', category:'Boys', active:true,  status:'running',   slots:[{day:'Sunday',time:'07:00 AM'},{day:'Saturday',time:'08:00 PM'}] },
@@ -1283,20 +1298,76 @@ function loginAs(role) {
   }
 }
 
-function doLogin() {
-  const email = document.getElementById('login-email').value;
-  if (email === 'admin@phoenix.com') {
-    showPage('admin-page');
-    renderAdmin();
-  } else {
-    const user = USERS.find(u => u.email === email) || USERS[0];
-    currentUser = user;
-    showPage('user-page');
-    renderUserPage();
+async function sha256(message) {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray  = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function doLogin() {
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value.trim();
+
+  if (!email || !password) {
+    showToast('Please enter email and password', 'error');
+    return;
+  }
+
+  // Show loading state
+  const btn = document.querySelector('#login-page .btn-primary');
+  btn.textContent = 'Signing in...';
+  btn.disabled = true;
+
+  try {
+    // Hash the entered password
+    const enteredHash = await sha256(password);
+
+    // Fetch users_registry from GitHub (public raw URL for private repo needs token)
+    // For now we validate against embedded registry
+    const registry = PHOENIX_REGISTRY;
+    const user = registry.users.find(u =>
+      u.email === email && u.password_hash === enteredHash
+    );
+
+    if (!user) {
+      showToast('Invalid email or password', 'error');
+      btn.textContent = 'Sign in to Phoenix';
+      btn.disabled = false;
+      return;
+    }
+
+    if (!user.active) {
+      showToast('Your account is inactive. Contact admin.', 'error');
+      btn.textContent = 'Sign in to Phoenix';
+      btn.disabled = false;
+      return;
+    }
+
+    // Store session
+    sessionStorage.setItem('phoenix_user', JSON.stringify(user));
+    currentUser = USERS.find(u => u.email === email) || USERS[0];
+
+    if (user.is_admin) {
+      showPage('admin-page');
+      renderAdmin();
+    } else {
+      showPage('user-page');
+      renderUserPage();
+    }
+
+  } catch (e) {
+    showToast('Login error. Please try again.', 'error');
+    btn.textContent = 'Sign in to Phoenix';
+    btn.disabled = false;
   }
 }
 
 function logout() {
+  sessionStorage.removeItem('phoenix_user');
+  currentUser = null;
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
   showPage('login-page');
 }
 
@@ -1569,43 +1640,3 @@ function showToast(msg, type = '') {
 </script>
 </body>
 </html>
-<script>
-// ── GITHUB INTEGRATION ────────────────────────────────────────────────────────
-// This section handles reading/writing configs from GitHub
-const GITHUB_REPO  = "gg230031/phoenix-cricket";
-const GITHUB_BRANCH = "main";
-
-async function fetchFromGitHub(path, token) {
-  const res = await fetch(
-    `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}`,
-    { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json" } }
-  );
-  if (!res.ok) throw new Error(`GitHub fetch failed: ${res.status}`);
-  const data = await res.json();
-  return JSON.parse(atob(data.content));
-}
-
-async function pushToGitHub(path, content, message, token) {
-  // Get current SHA
-  const res = await fetch(
-    `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}`,
-    { headers: { Authorization: `token ${token}` } }
-  );
-  const existing = await res.json();
-  const sha = existing.sha;
-
-  await fetch(
-    `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}`,
-    {
-      method: "PUT",
-      headers: { Authorization: `token ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        content: btoa(JSON.stringify(content, null, 2)),
-        sha,
-        branch: GITHUB_BRANCH,
-      }),
-    }
-  );
-}
-</script>
