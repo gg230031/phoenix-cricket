@@ -1198,16 +1198,18 @@ async function loadAdminPage() {
     grid.innerHTML = '';
 
     for (const u of users) {
+      // Skip empty placeholder slots
+      if (!u.active && !u.name) continue;
       let status = { status: 'idle', message: '' };
       try { status = await ghRead(`status/${u.user_id}_status.json`); } catch(e) {}
 
       const card = document.createElement('div');
       card.className = `user-card ${u.active ? '' : 'inactive'}`;
       card.innerHTML = `
-        <div class="user-card-avatar">${u.name[0].toUpperCase()}</div>
+        <div class="user-card-avatar">${(u.name || '?')[0].toUpperCase()}</div>
         <div class="user-card-info">
-          <div class="user-card-name">${u.name}</div>
-          <div class="user-card-email">${u.email}</div>
+          <div class="user-card-name">${u.name || 'Empty Slot'}</div>
+          <div class="user-card-email">${u.email || 'Not configured'}</div>
         </div>
         <div class="user-card-meta">
           <span class="status-pill ${u.active ? status.status || 'scheduled' : 'inactive'}">
