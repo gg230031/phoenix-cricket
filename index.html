@@ -958,6 +958,14 @@ async function loadUserPage(user) {
     // CricJoin credentials
     document.getElementById('cricjoin-email').value = currentConfig.cricjoin_email || '';
 
+    // Show bullets if password already saved, empty placeholder if not
+    const pwdField = document.getElementById('cricjoin-password');
+    if (currentConfig.cricjoin_password) {
+      pwdField.placeholder = '••••••••  (saved — leave blank to keep)';
+    } else {
+      pwdField.placeholder = 'Enter CricJoin password';
+    }
+
     // Category
     selectedCategory = currentConfig.category || 'boys';
     document.getElementById('cat-boys').classList.toggle('active',  selectedCategory === 'boys');
