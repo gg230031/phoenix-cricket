@@ -1,5 +1,5 @@
 """
-Phoenix Bot — Cloud Version
+Phoenix Bot â€” Cloud Version
 ============================
 Runs on GitHub Actions (headless Chrome).
 Reads user config, logs into CricJoin, grabs the slot,
@@ -16,9 +16,8 @@ import re
 import time
 from datetime import datetime, timedelta
 
-print("🔥  Phoenix Bot starting...", flush=True)
+print("ðŸ”¥  Phoenix Bot starting...", flush=True)
 
-# ── Selenium ──────────────────────────────────────────────────────────────────
 try:
     from selenium import webdriver
     from selenium.webdriver.common.by import By
@@ -30,15 +29,15 @@ try:
         NoSuchElementException, TimeoutException, ElementClickInterceptedException
     )
     from webdriver_manager.chrome import ChromeDriverManager
-    print("✅  Selenium imported successfully", flush=True)
+    print("âœ…  Selenium imported successfully", flush=True)
 except ImportError as e:
-    print(f"❌  Missing selenium: {e}")
+    print(f"âŒ  Missing selenium: {e}", flush=True)
     sys.exit(1)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  HELPERS
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
@@ -59,11 +58,17 @@ def time_to_24h(time_str):
 
 
 def is_slot_full(slot_text):
+    """Returns True if slot is full (e.g. 36/36, 27/27)"""
     matches = re.findall(r'(\d+)\s*/\s*(\d+)', slot_text)
     for current, maximum in matches:
         if int(current) >= int(maximum):
             return True
     return False
+
+
+def is_waitlist(text):
+    """Returns True if button/slot is a waitlist option"""
+    return 'waitlist' in normalize(text)
 
 
 def slot_matches(card_text, slot_day, slot_time):
@@ -82,37 +87,121 @@ def slot_matches(card_text, slot_day, slot_time):
     return day_ok and time_ok
 
 
+def find_button(driver, keywords, exclude_keywords=None):
+    """
+    Find a button containing any of the keywords (case insensitive).
+    Exclude buttons containing exclude_keywords.
+    """
+    exclude_keywords = exclude_keywords or []
+    all_buttons = driver.find_elements(By.TAG_NAME, "button")
+    all_buttons += driver.find_elements(By.CSS_SELECTOR, "input[type='submit']")
+    all_buttons += driver.find_elements(By.TAG_NAME, "a")
+
+    for btn in all_buttons:
+        btn_text = normalize(btn.text or btn.get_attribute('value') or '')
+        # Skip excluded keywords
+        if any(ex in btn_text for ex in exclude_keywords):
+            continue
+        # Match keywords
+        if any(kw in btn_text for kw in keywords):
+            return btn
+    return None
+
+
 def advance_next_date(cfg):
     current = cfg.get("next_registration_date", "")
     if current:
         try:
             dt = datetime.strptime(current, "%Y-%m-%d")
             cfg["next_registration_date"] = (dt + timedelta(days=7)).strftime("%Y-%m-%d")
-            log(f"📅  Next registration date advanced to: {cfg['next_registration_date']}")
+            log(f"ðŸ“…  Next registration date advanced to: {cfg['next_registration_date']}")
         except ValueError:
             pass
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+def update_cron_schedule(cfg, config_file):
+    """
+    Update the GitHub Actions workflow cron schedule based on
+    registration_day and registration_time in config.
+    Fires 5 minutes before registration opens.
+    """
+    try:
+        reg_day  = cfg.get("registration_day", "Thursday")
+        reg_time = cfg.get("registration_time", "19:00")
+
+        # Convert day name to cron weekday number (0=Sunday, 1=Monday...6=Saturday)
+        day_map = {
+            "Sunday": 0, "Monday": 1, "Tuesday": 2, "Wednesday": 3,
+            "Thursday": 4, "Friday": 5, "Saturday": 6
+        }
+        day_num = day_map.get(reg_day, 4)
+
+        # Parse registration time
+        hh, mm = map(int, reg_time.split(":"))
+
+        # Convert IST to UTC (IST = UTC + 5:30)
+        total_mins = hh * 60 + mm - 330  # subtract 5h30m
+        if total_mins < 0:
+            total_mins += 1440
+            day_num = (day_num - 1) % 7
+
+        # Fire 5 minutes before
+        total_mins -= 5
+        if total_mins < 0:
+            total_mins += 1440
+            day_num = (day_num - 1) % 7
+
+        cron_hour = total_mins // 60
+        cron_min  = total_mins % 60
+
+        new_cron = f"{cron_min} {cron_hour} * * {day_num}"
+        log(f"ðŸ“…  New cron schedule: '{new_cron}' ({reg_day} at {reg_time} IST, fires 5 mins early)")
+
+        # Read and update the workflow file
+        workflow_file = f".github/workflows/{cfg.get('user_id', 'user1')}.yml"
+        if os.path.exists(workflow_file):
+            with open(workflow_file, "r") as f:
+                workflow = f.read()
+
+            # Replace the cron line
+            import re as re2
+            workflow = re2.sub(
+                r"- cron: '[^']*'",
+                f"- cron: '{new_cron}'",
+                workflow
+            )
+
+            with open(workflow_file, "w") as f:
+                f.write(workflow)
+
+            log(f"âœ…  Workflow cron updated to: {new_cron}")
+        else:
+            log(f"âš ï¸   Workflow file not found: {workflow_file}")
+
+    except Exception as e:
+        log(f"âš ï¸   Could not update cron: {e}")
+
+
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  CONFIG & STATUS
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def load_config(config_file):
     try:
         with open(config_file) as f:
             return json.load(f)
     except Exception as e:
-        print(f"❌  Cannot load {config_file}: {e}", flush=True)
+        print(f"âŒ  Cannot load {config_file}: {e}", flush=True)
         sys.exit(1)
 
 
 def save_config(cfg, config_file):
     with open(config_file, "w") as f:
         json.dump(cfg, f, indent=2)
-    log(f"✅  Config saved: {config_file}")
+    log(f"âœ…  Config saved: {config_file}")
 
 
-def save_status(user_id, status, message, next_run=""):
+def save_status(user_id, status, message, next_run="", slot_info=""):
     status_file = f"status/{user_id}_status.json"
     data = {
         "user_id":     user_id,
@@ -121,19 +210,20 @@ def save_status(user_id, status, message, next_run=""):
         "last_result": status,
         "next_run":    next_run,
         "message":     message,
+        "slot_info":   slot_info,
     }
     os.makedirs("status", exist_ok=True)
     with open(status_file, "w") as f:
         json.dump(data, f, indent=2)
-    log(f"📊  Status saved: {status} — {message}")
+    log(f"ðŸ“Š  Status saved: {status} â€” {message}")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  BROWSER
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def create_driver():
-    log("🌐  Setting up Chrome...")
+    log("ðŸŒ  Setting up Chrome...")
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
@@ -149,25 +239,25 @@ def create_driver():
     }
     options.add_experimental_option("prefs", prefs)
 
-    log("🔧  Installing ChromeDriver...")
+    log("ðŸ”§  Installing ChromeDriver...")
     service = Service(ChromeDriverManager().install())
-    log("🚀  Launching Chrome...")
+    log("ðŸš€  Launching Chrome...")
     driver  = webdriver.Chrome(service=service, options=options)
-    log("✅  Chrome launched successfully!")
+    log("âœ…  Chrome launched successfully!")
     return driver
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  LOGIN
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def login(driver, cfg):
     password = os.environ.get("CRICJOIN_PASSWORD") or cfg.get("cricjoin_password", "")
     if not password:
-        log("❌  No password found. Set USER1_PASSWORD in GitHub Secrets.")
+        log("âŒ  No password found. Set USER1_PASSWORD in GitHub Secrets.")
         sys.exit(1)
 
-    log(f"🔐  Logging in as {cfg['cricjoin_email']}...")
+    log(f"ðŸ”  Logging in as {cfg['cricjoin_email']}...")
     driver.get(cfg["login_url"])
 
     wait = WebDriverWait(driver, 15)
@@ -186,106 +276,71 @@ def login(driver, cfg):
 
     time.sleep(3)
     if "login" in driver.current_url:
-        log("❌  Login failed! Check credentials.")
+        log("âŒ  Login failed! Check credentials.")
         driver.quit()
         sys.exit(1)
 
-    log("✅  Logged in successfully!")
+    log("âœ…  Logged in successfully!")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  WAIT FOR REGISTER BUTTON
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def wait_for_register_button(driver, cfg):
-    interval = 1
-    category = normalize(cfg.get("category", ""))
-    attempt  = 0
-    max_attempts = 300
+    interval     = float(cfg.get("check_interval_seconds", 0.5))
+    category     = normalize(cfg.get("category", ""))
+    attempt      = 0
+    max_attempts = 600  # 10 minutes max
 
-    log(f"\n🔄  Watching for Register button (max {max_attempts} attempts)...")
+    log(f"\nðŸ”„  Watching for Register button every {interval}s (max {max_attempts} attempts)...")
 
     while attempt < max_attempts:
         attempt += 1
         driver.get(cfg["forms_url"])
-        time.sleep(2)
+        time.sleep(1.5)
 
         try:
-            # Log page source snippet for debugging first attempt
             if attempt == 1:
                 body_text = driver.find_element(By.TAG_NAME, "body").text
-                log(f"   Page content preview: {body_text[:300]}")
+                log(f"   Page preview: {body_text[:300]}")
 
-            # Broad search — find ANY Register button on the page
-            # Try multiple XPath strategies
+            # Find ALL buttons on page
+            all_buttons = driver.find_elements(By.TAG_NAME, "button")
+            all_buttons += driver.find_elements(By.CSS_SELECTOR, "input[type='submit']")
+            all_buttons += driver.find_elements(By.TAG_NAME, "a")
+
             register_btns = []
-
-            # Strategy 1: exact text match
-            register_btns = driver.find_elements(By.XPATH,
-                "//*[self::button or self::a or self::input]"
-                "[normalize-space(translate(text(),"
-                "'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'))='register']"
-            )
-
-            # Strategy 2: contains text (broader)
-            if not register_btns:
-                register_btns = driver.find_elements(By.XPATH,
-                    "//*[self::button or self::a]"
-                    "[contains(translate(text(),"
-                    "'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'register')]"
-                )
-
-            # Strategy 3: button value attribute
-            if not register_btns:
-                register_btns = driver.find_elements(By.XPATH,
-                    "//input[@type='submit' and contains(translate(@value,"
-                    "'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'register')]"
-                )
+            for btn in all_buttons:
+                btn_text = normalize(btn.text or btn.get_attribute('value') or '')
+                # Must contain 'register' but NOT 'cancel', 'back', 'waitlist'
+                if 'register' in btn_text and not any(
+                    x in btn_text for x in ['cancel', 'back', 'waitlist']
+                ):
+                    register_btns.append(btn)
 
             if attempt == 1:
-                log(f"   Found {len(register_btns)} Register button(s) on page")
+                log(f"   Found {len(register_btns)} Register button(s)")
 
             matched_btn = None
             for btn in register_btns:
-                # Get surrounding context text
                 try:
-                    # Try to get parent container text
                     parent = btn.find_element(By.XPATH, "./ancestor::*[self::div or self::li or self::tr][1]")
                     card_text = parent.text
                 except NoSuchElementException:
                     card_text = btn.text
 
-                if attempt == 1:
-                    log(f"   Button context: {card_text[:100]}")
-
-                # Check if slot is full
                 if is_slot_full(card_text):
-                    log(f"   Slot full, skipping: {card_text[:60].strip()}")
+                    log(f"   Slot full, skipping")
                     continue
 
-                # Check category
                 if category and category not in normalize(card_text):
-                    # Try broader page context
                     page_text = driver.find_element(By.TAG_NAME, "body").text
                     if category not in normalize(page_text):
                         continue
 
-                # Check slot choices — if no choices match, take first available
-                slot_matched = False
-                for choice in cfg["slot_choices"]:
-                    if slot_matches(card_text, choice.get("slot_day",""), choice.get("slot_time","")):
-                        slot_matched = True
-                        break
-
-                # If no slot choice matches but we have a Register button, use it
-                # (the slot selection happens in the next step)
-                if not slot_matched and cfg["slot_choices"]:
-                    log(f"   Register button found but slot text doesn't match choices")
-                    log(f"   Card text: {card_text[:100]}")
-                    log(f"   Will proceed anyway — slot selection handled in form")
-
                 matched_btn = btn
-                log(f"🟢  Attempt {attempt}: Register button found!")
+                log(f"ðŸŸ¢  Attempt {attempt}: Register button found!")
                 log(f"    Context: {card_text[:80].strip()}")
                 break
 
@@ -296,36 +351,37 @@ def wait_for_register_button(driver, cfg):
                     matched_btn.click()
                 except ElementClickInterceptedException:
                     driver.execute_script("arguments[0].click();", matched_btn)
-                log("✅  Register button clicked!")
+                log("âœ…  Register button clicked!")
                 return True
             else:
                 if attempt % 10 == 0:
-                    log(f"   Attempt {attempt}: Still waiting for slot to open...")
+                    log(f"   Attempt {attempt}: Waiting for slot to open...")
                 time.sleep(interval)
 
         except Exception as e:
-            log(f"   Attempt {attempt}: Error — {e}")
+            log(f"   Attempt {attempt}: Error â€” {e}")
             time.sleep(interval)
 
-    log("❌  Timed out waiting for Register button.")
+    log("âŒ  Timed out waiting for Register button.")
     return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  ANSWER POLL
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def answer_poll(driver, cfg):
     poll_answer = cfg.get("poll_answer", "Excellent")
-    wait = WebDriverWait(driver, 10)
+    wait        = WebDriverWait(driver, 10)
 
-    log(f"📋  Answering poll: '{poll_answer}'")
+    log(f"ðŸ“‹  Answering poll: '{poll_answer}'")
     try:
         wait.until(EC.presence_of_element_located((By.XPATH,
             f"//*[contains(translate(text(),"
             f"'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),"
             f"'{poll_answer.lower()}')]"
         )))
+
         option = driver.find_element(By.XPATH,
             f"//*[contains(translate(text(),"
             f"'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),"
@@ -333,97 +389,165 @@ def answer_poll(driver, cfg):
             f"[self::label or self::span or self::div or self::input]"
         )
         driver.execute_script("arguments[0].scrollIntoView(true);", option)
-        time.sleep(0.3)
+        time.sleep(0.2)
         try:
             option.click()
         except ElementClickInterceptedException:
             driver.execute_script("arguments[0].click();", option)
 
-        log(f"✅  Selected '{poll_answer}'")
+        log(f"âœ…  Selected '{poll_answer}'")
         time.sleep(0.5)
 
-        next_btn = driver.find_element(By.XPATH,
-            "//button[normalize-space(translate(text(),"
-            "'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'))='next']"
+        # Find Next/Continue/Proceed button (case insensitive)
+        next_btn = find_button(
+            driver,
+            keywords=['next', 'continue', 'proceed'],
+            exclude_keywords=['cancel', 'back']
         )
-        next_btn.click()
-        log("✅  Clicked Next")
-        time.sleep(1)
+
+        if next_btn:
+            log(f"âœ…  Found next button: '{next_btn.text.strip()}'")
+            driver.execute_script("arguments[0].scrollIntoView(true);", next_btn)
+            time.sleep(0.2)
+            try:
+                next_btn.click()
+            except ElementClickInterceptedException:
+                driver.execute_script("arguments[0].click();", next_btn)
+            log("âœ…  Clicked Next")
+            time.sleep(1)
+        else:
+            log("âš ï¸   Could not find Next button")
 
     except (NoSuchElementException, TimeoutException) as e:
-        log(f"⚠️   Poll error: {e}")
+        log(f"âš ï¸   Poll error: {e}")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  SELECT SLOT & REGISTER
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def select_slot_and_register(driver, cfg):
-    log("🎯  Selecting slot...")
+    log("ðŸŽ¯  Selecting slot...")
     time.sleep(1)
+    registered_slot_info = ""
 
     try:
+        # Find all slot containers
         slot_containers = driver.find_elements(By.XPATH, "//div[.//input[@type='checkbox']]")
         if not slot_containers:
             slot_containers = driver.find_elements(By.CSS_SELECTOR, "input[type='checkbox']")
 
-        matched = None
-        for choice in cfg["slot_choices"]:
+        log(f"   Found {len(slot_containers)} slot container(s)")
+
+        matched      = None
+        matched_text = ""
+
+        # Go through slot choices in order
+        for choice_idx, choice in enumerate(cfg["slot_choices"]):
+            slot_day  = choice.get("slot_day", "")
+            slot_time = choice.get("slot_time", "")
+            log(f"   Trying choice {choice_idx + 1}: {slot_day} at {slot_time}")
+
             for container in slot_containers:
-                if is_slot_full(container.text):
+                container_text = container.text
+
+                # Skip waitlist slots
+                if is_waitlist(container_text):
+                    log(f"   Skipping waitlist slot: {container_text[:60]}")
                     continue
-                if slot_matches(container.text, choice.get("slot_day",""), choice.get("slot_time","")):
-                    matched = container
-                    log(f"✅  Matched: {container.text[:80].strip()}")
+
+                # Skip full slots
+                if is_slot_full(container_text):
+                    log(f"   Skipping full slot: {container_text[:60]}")
+                    continue
+
+                # Match day + time
+                if slot_matches(container_text, slot_day, slot_time):
+                    matched      = container
+                    matched_text = container_text
+                    log(f"âœ…  Matched slot: {container_text[:100].strip()}")
                     break
+
             if matched:
                 break
 
-        if not matched and slot_containers:
-            matched = slot_containers[0]
-            log("ℹ️   No exact match — using first available slot")
+        # Fallback â€” first available non-waitlist slot
+        if not matched:
+            log("   No exact match â€” trying first available non-waitlist slot")
+            for container in slot_containers:
+                if not is_waitlist(container.text) and not is_slot_full(container.text):
+                    matched      = container
+                    matched_text = container.text
+                    log(f"   Fallback slot: {container.text[:80]}")
+                    break
 
         if not matched:
-            log("❌  No slot checkboxes found")
-            return False
+            log("âŒ  No available slots found")
+            return False, ""
 
+        # Find and click the Join checkbox (not Join Waitlist)
+        join_checkbox = None
         try:
-            checkbox = matched.find_element(By.CSS_SELECTOR, "input[type='checkbox']")
+            # Look for checkbox inside the container
+            checkboxes = matched.find_elements(By.CSS_SELECTOR, "input[type='checkbox']")
+            for cb in checkboxes:
+                parent_text = normalize(cb.find_element(By.XPATH, "..").text)
+                if 'waitlist' not in parent_text:
+                    join_checkbox = cb
+                    break
+            if not join_checkbox and checkboxes:
+                join_checkbox = checkboxes[0]
         except NoSuchElementException:
-            checkbox = matched
+            join_checkbox = matched
 
-        driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
-        time.sleep(0.3)
-        if not checkbox.is_selected():
-            try:
-                checkbox.click()
-            except ElementClickInterceptedException:
-                driver.execute_script("arguments[0].click();", checkbox)
-
-        log("✅  Slot checkbox ticked")
+        if join_checkbox:
+            driver.execute_script("arguments[0].scrollIntoView(true);", join_checkbox)
+            time.sleep(0.2)
+            if not join_checkbox.is_selected():
+                try:
+                    join_checkbox.click()
+                except ElementClickInterceptedException:
+                    driver.execute_script("arguments[0].click();", join_checkbox)
+            log("âœ…  Join checkbox ticked")
+        
         time.sleep(0.5)
 
-        register_btn = driver.find_element(By.XPATH,
-            "//button[normalize-space(translate(text(),"
-            "'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'))='register']"
+        # Click Register button (not Cancel, not Back)
+        register_btn = find_button(
+            driver,
+            keywords=['register'],
+            exclude_keywords=['cancel', 'back', 'waitlist']
         )
-        register_btn.click()
-        log("✅  Final Register clicked!")
-        time.sleep(2)
-        return True
+
+        if register_btn:
+            log(f"âœ…  Found Register button: '{register_btn.text.strip()}'")
+            driver.execute_script("arguments[0].scrollIntoView(true);", register_btn)
+            time.sleep(0.2)
+            try:
+                register_btn.click()
+            except ElementClickInterceptedException:
+                driver.execute_script("arguments[0].click();", register_btn)
+            log("âœ…  Final Register clicked!")
+            time.sleep(2)
+            return True, matched_text
+        else:
+            log("âŒ  Could not find Register button")
+            return False, ""
 
     except Exception as e:
-        log(f"❌  Slot selection error: {e}")
-        return False
+        log(f"âŒ  Slot selection error: {e}")
+        import traceback
+        traceback.print_exc()
+        return False, ""
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  MAIN
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def main():
     print("=" * 55, flush=True)
-    print("       🔥  Phoenix Bot — Cloud Runner  🔥", flush=True)
+    print("       ðŸ”¥  Phoenix Bot â€” Cloud Runner  ðŸ”¥", flush=True)
     print("=" * 55, flush=True)
 
     if len(sys.argv) < 2:
@@ -435,19 +559,23 @@ def main():
     user_id     = cfg.get("user_id", "user1")
 
     if not cfg.get("active", True):
-        log("⏸   User is inactive. Skipping.")
+        log("â¸   User is inactive. Skipping.")
         save_status(user_id, "idle", "User is inactive")
         sys.exit(0)
 
-    log(f"👤  User    : {cfg['name']}")
-    log(f"📧  Email   : {cfg['cricjoin_email']}")
-    log(f"🏏  Category: {cfg['category']}")
-    log(f"📅  Reg day : {cfg.get('registration_day','?')} at {cfg.get('registration_time','?')}")
-    log(f"🎯  Slot choices:")
+    log(f"ðŸ‘¤  User      : {cfg['name']}")
+    log(f"ðŸ“§  Email     : {cfg['cricjoin_email']}")
+    log(f"ðŸ  Category  : {cfg['category']}")
+    log(f"ðŸ“…  Reg day   : {cfg.get('registration_day','?')} at {cfg.get('registration_time','?')}")
+    log(f"â±ï¸   Interval  : {cfg.get('check_interval_seconds', 0.5)}s")
+    log(f"ðŸŽ¯  Slot choices:")
     for i, choice in enumerate(cfg["slot_choices"]):
         log(f"    {i+1}. {choice.get('slot_day','?')} at {choice.get('slot_time','?')}")
 
     save_status(user_id, "running", "Bot started")
+
+    # Update cron schedule based on config
+    update_cron_schedule(cfg, config_file)
 
     driver = create_driver()
 
@@ -457,22 +585,23 @@ def main():
 
         if success:
             answer_poll(driver, cfg)
-            registered = select_slot_and_register(driver, cfg)
+            registered, slot_info = select_slot_and_register(driver, cfg)
 
             if registered:
                 advance_next_date(cfg)
                 save_config(cfg, config_file)
-                next_run = cfg.get("next_registration_date", "")
-                save_status(user_id, "success", "Slot registered successfully! 🏏", next_run)
-                log("\n🏏  SUCCESS! Registered for the slot!")
+                next_run  = cfg.get("next_registration_date", "")
+                slot_msg  = f"Registered! ðŸ Slot: {slot_info[:80]}" if slot_info else "Registered successfully! ðŸ"
+                save_status(user_id, "success", slot_msg, next_run, slot_info)
+                log(f"\nðŸ  SUCCESS! {slot_msg}")
             else:
-                save_status(user_id, "failed", "Could not select slot — all may be full")
-                log("\n❌  Failed to register — all slots may be full")
+                save_status(user_id, "failed", "Could not select slot â€” all may be full")
+                log("\nâŒ  Failed to register â€” all slots may be full")
         else:
             save_status(user_id, "failed", "Timed out waiting for registration to open")
 
     except Exception as e:
-        log(f"❌  Unexpected error: {e}")
+        log(f"âŒ  Unexpected error: {e}")
         import traceback
         traceback.print_exc()
         save_status(user_id, "failed", f"Error: {str(e)}")
