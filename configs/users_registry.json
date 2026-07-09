@@ -13,7 +13,7 @@
       "name": "Landga AAOOOOO",
       "email": "Rahul848@gmail.com",
       "password_hash": "51a17913cf689e4607d83cc4c457394002db72bcbca9512fbf74fd904960e0fd",
-      "active": true,
+      "active": false,
       "is_admin": false
     }
   ]
