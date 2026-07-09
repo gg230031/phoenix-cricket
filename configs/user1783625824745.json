@@ -1,0 +1,23 @@
+{
+  "user_id": "user1783625824745",
+  "name": "Test User",
+  "email": "TestUser@gmail.com",
+  "cricjoin_email": "TestUser@gmail.com",
+  "cricjoin_password": "",
+  "active": true,
+  "category": "boys",
+  "poll_answer": "Excellent",
+  "check_interval_seconds": 0.5,
+  "registration_day": "Thursday",
+  "registration_time": "19:00",
+  "next_registration_date": "",
+  "slot_choices": [
+    {
+      "slot_day": "Saturday",
+      "slot_time": "20:00"
+    }
+  ],
+  "login_url": "https://cricjoin.com/login",
+  "forms_url": "https://cricjoin.com/my-cricket",
+  "secret_name": "USER1783625824745_PASSWORD"
+}
