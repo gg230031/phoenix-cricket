@@ -769,11 +769,8 @@
 // ══════════════════════════════════════════════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const GITHUB_REPO   = "gg230031/phoenix-cricket";
-const GITHUB_BRANCH = "main";
-// Token loaded from sessionStorage (set during login)
-let GITHUB_TOKEN = sessionStorage.getItem('phoenix_gh_token') || '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';
-const DAYS          = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const GITHUB_FN  = "https://phoenix-github-proxy.guru0812.workers.dev";
+const DAYS       = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const TIMES      = ['06:00 AM','06:30 AM','07:00 AM','07:30 AM','08:00 AM','08:30 AM',
                     '09:00 AM','09:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM','12:00 PM',
                     '05:00 PM','05:30 PM','06:00 PM','06:30 PM','07:00 PM','07:30 PM',
@@ -787,60 +784,28 @@ let countdownInterval = null;
 let clockInterval     = null;
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  GITHUB API (direct calls — no Netlify needed)
+//  GITHUB API (via Cloudflare Worker proxy — token hidden securely)
 // ══════════════════════════════════════════════════════════════════════════════
 async function ghRead(path) {
-  const res = await fetch(
-    `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}?ref=${GITHUB_BRANCH}&t=${Date.now()}`,
-    {
-      headers: {
-        Authorization: `token ${GITHUB_TOKEN}`,
-        Accept: 'application/vnd.github.v3+json',
-      },
-    }
-  );
-  if (!res.ok) throw new Error(`GitHub read failed: ${res.status} for ${path}`);
+  const res = await fetch(GITHUB_FN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'read', path }),
+  });
   const data = await res.json();
-  return JSON.parse(atob(data.content.replace(/\n/g, '')));
+  if (data.error) throw new Error(data.error);
+  return JSON.parse(data.content);
 }
 
 async function ghWrite(path, content, message) {
-  // First get current SHA
-  const getRes = await fetch(
-    `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}?ref=${GITHUB_BRANCH}`,
-    {
-      headers: {
-        Authorization: `token ${GITHUB_TOKEN}`,
-        Accept: 'application/vnd.github.v3+json',
-      },
-    }
-  );
-  const getData = await getRes.json();
-  const sha = getData.sha;
-
-  // Write new content
-  const putRes = await fetch(
-    `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}`,
-    {
-      method: 'PUT',
-      headers: {
-        Authorization: `token ${GITHUB_TOKEN}`,
-        Accept: 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message,
-        content: btoa(unescape(encodeURIComponent(JSON.stringify(content, null, 2)))),
-        sha,
-        branch: GITHUB_BRANCH,
-      }),
-    }
-  );
-  if (!putRes.ok) {
-    const err = await putRes.json();
-    throw new Error(`GitHub write failed: ${putRes.status} — ${err.message}`);
-  }
-  return await putRes.json();
+  const res = await fetch(GITHUB_FN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'write', path, content: JSON.stringify(content, null, 2), message }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
