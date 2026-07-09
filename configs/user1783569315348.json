@@ -14,6 +14,10 @@
     {
       "slot_day": "Saturday",
       "slot_time": "20:00"
+    },
+    {
+      "slot_day": "Sunday",
+      "slot_time": "19:00"
     }
   ],
   "login_url": "https://cricjoin.com/login",
