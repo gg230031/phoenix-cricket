@@ -820,7 +820,7 @@ async function doLogin() {
     showLoading('Verifying credentials...');
     const registry    = await ghRead('configs/users_registry.json');
     const enteredHash = await sha256(password);
-    const user        = registry.users.find(u => u.email === email && u.password_hash === enteredHash);
+    const user        = registry.users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password_hash === enteredHash);
 
     if (!user) {
       hideLoading();
