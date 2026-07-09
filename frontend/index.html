@@ -546,6 +546,25 @@
   </div>
 </div>
 
+<!-- ── TOKEN SETUP (Admin only, first time) ── -->
+<div id="token-page" class="page">
+  <div class="login-card" style="max-width:480px">
+    <div class="phoenix-logo">
+      <div class="phoenix-icon">🔥</div>
+      <div class="phoenix-name">Phoenix</div>
+    </div>
+    <p class="login-subtitle">One-time setup required<br>Enter your GitHub Access Token</p>
+    <div style="background:rgba(52,152,219,0.08);border:1px solid rgba(52,152,219,0.2);border-radius:8px;padding:14px;font-size:13px;color:#5dade2;margin-bottom:20px;line-height:1.6;">
+      ℹ️ This token is stored only in your browser session and never shared. You'll need to enter it once per session.
+    </div>
+    <div class="form-group">
+      <label>GitHub Personal Access Token</label>
+      <input type="password" id="gh-token-input" placeholder="ghp_xxxxxxxxxxxx">
+    </div>
+    <button class="btn-primary" onclick="saveToken()">Continue to Phoenix</button>
+  </div>
+</div>
+
 <!-- ── USER DASHBOARD ── -->
 <div id="user-page" class="page">
   <div class="topbar">
@@ -768,8 +787,11 @@
 // ══════════════════════════════════════════════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const GITHUB_FN  = "/.netlify/functions/github";
-const DAYS       = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const GITHUB_REPO   = "gg230031/phoenix-cricket";
+const GITHUB_BRANCH = "main";
+// Token loaded from sessionStorage (set during login)
+let GITHUB_TOKEN = sessionStorage.getItem('phoenix_gh_token') || '';
+const DAYS          = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const TIMES      = ['06:00 AM','06:30 AM','07:00 AM','07:30 AM','08:00 AM','08:30 AM',
                     '09:00 AM','09:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM','12:00 PM',
                     '05:00 PM','05:30 PM','06:00 PM','06:30 PM','07:00 PM','07:30 PM',
@@ -783,28 +805,60 @@ let countdownInterval = null;
 let clockInterval     = null;
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  GITHUB API (via Netlify Function)
+//  GITHUB API (direct calls — no Netlify needed)
 // ══════════════════════════════════════════════════════════════════════════════
 async function ghRead(path) {
-  const res = await fetch(GITHUB_FN, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'read', path }),
-  });
+  const res = await fetch(
+    `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}?ref=${GITHUB_BRANCH}&t=${Date.now()}`,
+    {
+      headers: {
+        Authorization: `token ${GITHUB_TOKEN}`,
+        Accept: 'application/vnd.github.v3+json',
+      },
+    }
+  );
+  if (!res.ok) throw new Error(`GitHub read failed: ${res.status} for ${path}`);
   const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return JSON.parse(data.content);
+  return JSON.parse(atob(data.content.replace(/\n/g, '')));
 }
 
 async function ghWrite(path, content, message) {
-  const res = await fetch(GITHUB_FN, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'write', path, content: JSON.stringify(content, null, 2), message }),
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data;
+  // First get current SHA
+  const getRes = await fetch(
+    `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}?ref=${GITHUB_BRANCH}`,
+    {
+      headers: {
+        Authorization: `token ${GITHUB_TOKEN}`,
+        Accept: 'application/vnd.github.v3+json',
+      },
+    }
+  );
+  const getData = await getRes.json();
+  const sha = getData.sha;
+
+  // Write new content
+  const putRes = await fetch(
+    `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `token ${GITHUB_TOKEN}`,
+        Accept: 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message,
+        content: btoa(unescape(encodeURIComponent(JSON.stringify(content, null, 2)))),
+        sha,
+        branch: GITHUB_BRANCH,
+      }),
+    }
+  );
+  if (!putRes.ok) {
+    const err = await putRes.json();
+    throw new Error(`GitHub write failed: ${putRes.status} — ${err.message}`);
+  }
+  return await putRes.json();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -817,7 +871,21 @@ async function sha256(message) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function saveToken() {
+  const token = document.getElementById('gh-token-input').value.trim();
+  if (!token) { showToast('Please enter your GitHub token', 'error'); return; }
+  GITHUB_TOKEN = token;
+  sessionStorage.setItem('phoenix_gh_token', token);
+  showPage('login-page');
+}
+
 async function doLogin() {
+  // Check if token is set
+  if (!GITHUB_TOKEN) {
+    showPage('token-page');
+    return;
+  }
+
   const email    = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value.trim();
 
@@ -872,6 +940,8 @@ async function doLogin() {
 
 function logout() {
   sessionStorage.removeItem('phoenix_user');
+  sessionStorage.removeItem('phoenix_gh_token');
+  GITHUB_TOKEN  = '';
   currentUser   = null;
   currentConfig = null;
   if (countdownInterval) clearInterval(countdownInterval);
@@ -1346,8 +1416,12 @@ function showToast(msg, type = '') {
 //  AUTO LOGIN (if session exists)
 // ══════════════════════════════════════════════════════════════════════════════
 window.addEventListener('load', async () => {
+  // Restore token from session
+  const storedToken = sessionStorage.getItem('phoenix_gh_token');
+  if (storedToken) GITHUB_TOKEN = storedToken;
+
   const stored = sessionStorage.getItem('phoenix_user');
-  if (stored) {
+  if (stored && GITHUB_TOKEN) {
     currentUser = JSON.parse(stored);
     if (currentUser.is_admin) {
       showPage('admin-page');
