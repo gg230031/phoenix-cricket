@@ -182,6 +182,16 @@
 
   .btn-logout:hover { border-color: var(--fire-1); color: var(--fire-1); }
 
+  .btn-nav {
+    padding: 7px 14px; background: transparent;
+    border: 1px solid var(--fire-1); border-radius: var(--radius-sm);
+    color: var(--fire-1); font-size: 13px;
+    font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s;
+    font-weight: 500;
+  }
+
+  .btn-nav:hover { background: rgba(255,69,0,0.1); }
+
   /* ── MAIN ── */
   .main-content {
     flex: 1; padding: 32px 24px;
@@ -872,6 +882,21 @@ function logout() {
   showPage('login-page');
 }
 
+async function goToMySettings() {
+  // Admin navigating to their personal settings
+  await loadUserPage(currentUser);
+  showPage('user-page');
+  // Show the Admin Panel button in user topbar
+  const adminBtn = document.getElementById('admin-panel-btn');
+  if (adminBtn) adminBtn.style.display = 'block';
+}
+
+async function goToAdmin() {
+  // Navigate back to admin panel
+  showPage('admin-page');
+  await loadAdminPage();
+}
+
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -888,8 +913,12 @@ async function loadUserPage(user) {
     const status  = await ghRead(`status/${user.user_id}_status.json`);
 
     // Set avatar & name
-    document.getElementById('user-avatar').textContent      = user.name[0].toUpperCase();
+    document.getElementById('user-avatar').textContent       = user.name[0].toUpperCase();
     document.getElementById('user-display-name').textContent = user.name;
+
+    // Show Admin Panel button only for admins
+    const adminBtn = document.getElementById('admin-panel-btn');
+    if (adminBtn) adminBtn.style.display = user.is_admin ? 'block' : 'none';
 
     // Status banner
     renderStatusBanner(status);
