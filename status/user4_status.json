@@ -1,9 +1,9 @@
 {
   "user_id": "user4",
   "status": "idle",
-  "last_run": "",
-  "last_result": "",
+  "last_run": "2026-07-16 18:50:56",
+  "last_result": "idle",
   "next_run": "",
-  "message": "Not yet configured",
+  "message": "User is inactive",
   "slot_info": ""
 }
