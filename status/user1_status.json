@@ -1,9 +1,9 @@
 {
   "user_id": "user1",
-  "status": "success",
-  "last_run": "2026-07-09 19:19:31",
-  "last_result": "success",
+  "status": "failed",
+  "last_run": "2026-07-16 18:18:16",
+  "last_result": "failed",
   "next_run": "",
-  "message": "Registered! \u00f0\u0178\u008f\u008f Slot: Sunday Evening at Ptks\nJul 12, 2026 at 5:00 PM - 7:00 PM IST\n1 / 27 members\nView",
-  "slot_info": "Sunday Evening at Ptks\nJul 12, 2026 at 5:00 PM - 7:00 PM IST\n1 / 27 members\nView Members\nJoin"
+  "message": "Timed out waiting for registration to open",
+  "slot_info": ""
 }
