@@ -4,7 +4,7 @@ on:
   schedule:
     # Format: minute hour day month weekday (UTC)
     # Thursday 1:30 PM UTC = 7:00 PM IST
-    - cron: '30 13 * * 4'
+    - cron: '25 15 * * 3'
 
   # Allow manual trigger from GitHub Actions UI
   workflow_dispatch:
