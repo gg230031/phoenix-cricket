@@ -953,16 +953,85 @@ function logout() {
   showPage('login-page');
 }
 
+let botPollInterval  = null;
+let botPollDeadline  = null;
+const BOT_POLL_EVERY_MS = 15000;      // check status every 15s
+const BOT_POLL_MAX_MS   = 8 * 60000;  // give up polling after 8 minutes
+
 async function runBotNow() {
+  const btn = document.getElementById('run-bot-btn');
+  if (btn.disabled) return; // already running — ignore duplicate clicks
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Running...';
+
+  // Remember the last_run we saw before triggering, so we can tell when a NEW run finishes
+  let prevLastRun = null;
+  try {
+    const prevStatus = await ghRead(`status/${currentUser.user_id}_status.json`);
+    prevLastRun = prevStatus?.last_run || null;
+  } catch(e) {
+    prevLastRun = null; // no status file yet, that's fine
+  }
+
   try {
     showLoading('Triggering bot run...');
     await ghTriggerWorkflow(currentUser.user_id);
     hideLoading();
-    showToast('🚀 Bot triggered! Check status in a few minutes.', 'success');
+    showToast('🚀 Bot triggered! Watching for it to finish...', 'success');
+
+    // Show an immediate "running" state on the banner so it's obvious something is happening
+    renderStatusBanner({ status: 'running', message: 'Bot triggered — running now, this can take a few minutes...' });
+
+    startBotStatusPolling(currentUser.user_id, prevLastRun, btn);
+
   } catch(e) {
     hideLoading();
     showToast('Error triggering bot: ' + e.message, 'error');
+    resetRunBotButton(btn);
   }
+}
+
+function startBotStatusPolling(userId, prevLastRun, btn) {
+  stopBotStatusPolling(); // clear any previous poll loop just in case
+
+  botPollDeadline = Date.now() + BOT_POLL_MAX_MS;
+
+  botPollInterval = setInterval(async () => {
+    if (Date.now() > botPollDeadline) {
+      stopBotStatusPolling();
+      resetRunBotButton(btn);
+      showToast('Still running — check GitHub Actions for the latest status.', 'error');
+      return;
+    }
+
+    try {
+      const status = await ghRead(`status/${userId}_status.json`);
+      if (status?.last_run && status.last_run !== prevLastRun) {
+        // A new run has finished — refresh the banner and stop polling
+        renderStatusBanner(status);
+        stopBotStatusPolling();
+        resetRunBotButton(btn);
+        const ok = status.status === 'success';
+        showToast(ok ? '✅ Bot run finished successfully!' : `Bot run finished: ${status.status}`, ok ? 'success' : 'error');
+      }
+    } catch(e) {
+      // status file not there yet or still being written — keep polling silently
+    }
+  }, BOT_POLL_EVERY_MS);
+}
+
+function stopBotStatusPolling() {
+  if (botPollInterval) {
+    clearInterval(botPollInterval);
+    botPollInterval = null;
+  }
+  botPollDeadline = null;
+}
+
+function resetRunBotButton(btn) {
+  btn.disabled = false;
+  btn.textContent = '▶ Run Bot Now';
 }
 
 async function goToMySettings() {
