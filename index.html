@@ -1535,12 +1535,15 @@ async function updateCronSchedule(userId, regDay, regTime24) {
   const workflowData = await rawData.json();
   if (workflowData.error) throw new Error(workflowData.error);
   const workflowContent = workflowData.content;
+  console.log('Workflow content type:', typeof workflowContent);
+  console.log('Workflow preview:', workflowContent?.substring(0, 50));
 
   // Replace cron line
   const updated = workflowContent.replace(
     /- cron: '[^']*'/,
     `- cron: '${newCron}'`
   );
+  console.log('Updated preview:', updated?.substring(0, 100));
 
   // Write back as raw string
   const writeRes = await fetch(GITHUB_FN, {
@@ -1550,7 +1553,8 @@ async function updateCronSchedule(userId, regDay, regTime24) {
       action: "write", 
       path: workflowPath, 
       content: updated,
-      message: `Phoenix: Update cron schedule for ${userId} → ${newCron}`
+      message: `Phoenix: Update cron schedule for ${userId} → ${newCron}`,
+      raw: true
     }),
   });
   const writeData = await writeRes.json();
