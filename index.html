@@ -826,6 +826,10 @@ async function ghRead(path) {
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error);
+  // Return raw string for yml files, parsed JSON for json files
+  if (path.endsWith('.yml') || path.endsWith('.yaml')) {
+    return { content: data.content, sha: data.sha };
+  }
   return JSON.parse(data.content);
 }
 
