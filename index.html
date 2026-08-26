@@ -693,6 +693,7 @@
   <div class="save-bar">
     <div class="save-bar-text" id="save-bar-text">Changes will be saved to your profile</div>
     <button class="btn-nav" id="run-bot-btn" onclick="runBotNow()" style="padding:12px 20px">▶ Run Bot Now</button>
+    <button class="btn-nav" id="cancel-run-btn" onclick="cancelBotRun()" style="padding:12px 20px;display:none;background:rgba(231,76,60,0.15);color:#e74c3c;border-color:rgba(231,76,60,0.3)">⏹ Cancel Run</button>
     <button class="btn-save" id="save-btn" onclick="saveSettings()">Save Settings</button>
   </div>
 </div>
@@ -877,6 +878,28 @@ async function ghTriggerWorkflow(userId) {
   return data;
 }
 
+async function ghListRuns(userId) {
+  const res = await fetch(GITHUB_FN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'list_runs', user_id: userId }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.runs || [];
+}
+
+async function ghCancelWorkflow(runId) {
+  const res = await fetch(GITHUB_FN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'cancel_workflow', run_id: runId }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 //  AUTH
 // ══════════════════════════════════════════════════════════════════════════════
@@ -953,10 +976,13 @@ function logout() {
   showPage('login-page');
 }
 
-let botPollInterval  = null;
-let botPollDeadline  = null;
-const BOT_POLL_EVERY_MS = 15000;      // check status every 15s
-const BOT_POLL_MAX_MS   = 8 * 60000;  // give up polling after 8 minutes
+let botPollInterval   = null;
+let botPollDeadline   = null;
+let activeManualRunId = null; // the exact run ID of the run WE triggered this session — never a guess
+const BOT_POLL_EVERY_MS   = 15000;      // check status every 15s
+const BOT_POLL_MAX_MS     = 8 * 60000;  // give up polling after 8 minutes
+const RUN_ID_LOOKUP_TRIES = 6;          // try up to 6 times (~18s) to find the new run's ID
+const RUN_ID_LOOKUP_EVERY_MS = 3000;
 
 async function runBotNow() {
   const btn = document.getElementById('run-bot-btn');
@@ -965,16 +991,14 @@ async function runBotNow() {
   btn.disabled = true;
   btn.textContent = '⏳ Running...';
 
-  // Remember the last_run we saw before triggering, so we can tell when a NEW run finishes
-  let prevLastRun = null;
   try {
-    const prevStatus = await ghRead(`status/${currentUser.user_id}_status.json`);
-    prevLastRun = prevStatus?.last_run || null;
-  } catch(e) {
-    prevLastRun = null; // no status file yet, that's fine
-  }
+    // Snapshot existing run numbers BEFORE triggering, so we can identify the new one precisely
+    let beforeMaxRunNumber = 0;
+    try {
+      const beforeRuns = await ghListRuns(currentUser.user_id);
+      beforeMaxRunNumber = beforeRuns.reduce((max, r) => Math.max(max, r.run_number || 0), 0);
+    } catch(e) { /* if this fails we just won't be able to offer Cancel — non-fatal */ }
 
-  try {
     showLoading('Triggering bot run...');
     await ghTriggerWorkflow(currentUser.user_id);
     hideLoading();
@@ -983,7 +1007,10 @@ async function runBotNow() {
     // Show an immediate "running" state on the banner so it's obvious something is happening
     renderStatusBanner({ status: 'running', message: 'Bot triggered — running now, this can take a few minutes...' });
 
-    startBotStatusPolling(currentUser.user_id, prevLastRun, btn);
+    // Find the exact run ID of the run we just started (never guess — only cancel what WE triggered)
+    findAndTrackNewRun(currentUser.user_id, beforeMaxRunNumber);
+
+    startBotStatusPolling(currentUser.user_id, btn);
 
   } catch(e) {
     hideLoading();
@@ -992,7 +1019,48 @@ async function runBotNow() {
   }
 }
 
-function startBotStatusPolling(userId, prevLastRun, btn) {
+async function findAndTrackNewRun(userId, beforeMaxRunNumber, attempt = 0) {
+  try {
+    const runs = await ghListRuns(userId);
+    const newRun = runs.find(r => (r.run_number || 0) > beforeMaxRunNumber);
+    if (newRun) {
+      activeManualRunId = newRun.id;
+      showCancelButton(true);
+      return;
+    }
+  } catch(e) { /* ignore, will retry */ }
+
+  if (attempt < RUN_ID_LOOKUP_TRIES) {
+    setTimeout(() => findAndTrackNewRun(userId, beforeMaxRunNumber, attempt + 1), RUN_ID_LOOKUP_EVERY_MS);
+  }
+  // if we never find it, Cancel button just stays hidden — safer than guessing which run to cancel
+}
+
+async function cancelBotRun() {
+  if (!activeManualRunId) return;
+  const cancelBtn = document.getElementById('cancel-run-btn');
+  cancelBtn.disabled = true;
+  cancelBtn.textContent = 'Cancelling...';
+
+  try {
+    await ghCancelWorkflow(activeManualRunId);
+    showToast('⏹ Cancel requested — this can take a few seconds to take effect.', 'success');
+  } catch(e) {
+    showToast('Error cancelling run: ' + e.message, 'error');
+    cancelBtn.disabled = false;
+    cancelBtn.textContent = '⏹ Cancel Run';
+  }
+}
+
+function showCancelButton(show) {
+  const cancelBtn = document.getElementById('cancel-run-btn');
+  if (!cancelBtn) return;
+  cancelBtn.style.display = show ? 'inline-flex' : 'none';
+  cancelBtn.disabled = false;
+  cancelBtn.textContent = '⏹ Cancel Run';
+}
+
+function startBotStatusPolling(userId, btn) {
   stopBotStatusPolling(); // clear any previous poll loop just in case
 
   botPollDeadline = Date.now() + BOT_POLL_MAX_MS;
@@ -1007,8 +1075,8 @@ function startBotStatusPolling(userId, prevLastRun, btn) {
 
     try {
       const status = await ghRead(`status/${userId}_status.json`);
-      if (status?.last_run && status.last_run !== prevLastRun) {
-        // A new run has finished — refresh the banner and stop polling
+      if (status?.status && status.status !== 'running') {
+        // The run has finished (success/failed/idle) — refresh the banner and stop polling
         renderStatusBanner(status);
         stopBotStatusPolling();
         resetRunBotButton(btn);
@@ -1027,6 +1095,8 @@ function stopBotStatusPolling() {
     botPollInterval = null;
   }
   botPollDeadline = null;
+  activeManualRunId = null;
+  showCancelButton(false);
 }
 
 function resetRunBotButton(btn) {
@@ -1084,6 +1154,17 @@ async function loadUserPage(user) {
 
     // Status banner
     renderStatusBanner(status);
+
+    // If a run is already in progress (e.g. this page was reloaded mid-run), keep the
+    // button disabled and resume polling so a fresh click can't fire a duplicate run.
+    // We deliberately do NOT show a Cancel button here — we don't have that run's exact
+    // ID after a reload, and guessing which run to cancel is exactly what we're avoiding.
+    const runBotBtn = document.getElementById('run-bot-btn');
+    if (status?.status === 'running' && runBotBtn) {
+      runBotBtn.disabled = true;
+      runBotBtn.textContent = '⏳ Running...';
+      startBotStatusPolling(user.user_id, runBotBtn);
+    }
 
     // Registration schedule
     const regDay  = currentConfig.registration_day  || 'Thursday';
