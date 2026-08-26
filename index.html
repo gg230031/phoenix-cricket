@@ -1453,10 +1453,14 @@ function hideWorkflowInstructions() {
 }
 
 async function getNextAvailableSlot(registry) {
-  // Find next available placeholder slot (user2-user5)
-  const usedIds = registry.users.map(u => u.user_id);
+  // Find next available placeholder slot (user2-user5).
+  // A slot is "available" if it has no entry yet, OR its entry is still an
+  // empty placeholder (no name set) — NOT just because an entry exists in
+  // the array, since placeholder rows for every slot already sit there.
   for (let i = 2; i <= 5; i++) {
-    if (!usedIds.includes(`user${i}`)) return `user${i}`;
+    const uid = `user${i}`;
+    const existing = registry.users.find(u => u.user_id === uid);
+    if (!existing || !existing.name) return uid;
   }
   return null;
 }
