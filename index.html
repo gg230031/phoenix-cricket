@@ -1612,7 +1612,7 @@ function showToast(msg, type = '') {
 // ══════════════════════════════════════════════════════════════════════════════
 window.addEventListener('load', async () => {
   const stored = sessionStorage.getItem('phoenix_user');
-  if (stored && GITHUB_TOKEN) {
+  if (stored) {
     currentUser = JSON.parse(stored);
     if (currentUser.is_admin) {
       showPage('admin-page');
