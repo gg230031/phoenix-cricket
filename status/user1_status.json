@@ -1,9 +1,9 @@
 {
   "user_id": "user1",
-  "status": "failed",
-  "last_run": "2026-08-20 14:27:18",
-  "last_result": "failed",
+  "status": "running",
+  "last_run": "2026-08-26 13:15:48",
+  "last_result": "running",
   "next_run": "",
-  "message": "Timed out waiting for registration to open",
+  "message": "Bot started",
   "slot_info": ""
 }
