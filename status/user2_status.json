@@ -1,9 +1,9 @@
 {
   "user_id": "user2",
-  "status": "idle",
-  "last_run": "",
-  "last_result": "",
+  "status": "running",
+  "last_run": "2026-08-26 16:35:57",
+  "last_result": "running",
   "next_run": "",
-  "message": "Not yet run",
+  "message": "Bot started",
   "slot_info": ""
 }
