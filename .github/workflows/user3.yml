@@ -2,7 +2,7 @@ name: Phoenix Bot - User3
 
 on:
   schedule:
-    - cron: '25 15 * * 4'
+    - cron: '25 15 * * 3'
   workflow_dispatch:
 
 permissions:
