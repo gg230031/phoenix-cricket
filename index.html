@@ -1521,10 +1521,16 @@ async function updateCronSchedule(userId, regDay, regTime24) {
 
   console.log(`📅 Updating cron to: ${newCron} (${regDay} at ${regTime24} IST, fires 5 mins early)`);
 
-  // Read current workflow file
+  // Read current workflow file (raw content, not JSON parsed)
   const workflowPath = `.github/workflows/${userId}.yml`;
-  const workflowData = await ghRead(workflowPath);
-  const workflowContent = workflowData.content ?? workflowData;
+  const rawData = await fetch(GITHUB_FN, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "read", path: workflowPath }),
+  });
+  const workflowData = await rawData.json();
+  if (workflowData.error) throw new Error(workflowData.error);
+  const workflowContent = workflowData.content;
 
   // Replace cron line
   const updated = workflowContent.replace(
@@ -1532,12 +1538,19 @@ async function updateCronSchedule(userId, regDay, regTime24) {
     `- cron: '${newCron}'`
   );
 
-  // Write back
-  await ghWrite(
-    workflowPath,
-    updated,
-    `Phoenix: Update cron schedule for ${userId} → ${newCron}`
-  );
+  // Write back as raw string
+  const writeRes = await fetch(GITHUB_FN, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ 
+      action: "write", 
+      path: workflowPath, 
+      content: updated,
+      message: `Phoenix: Update cron schedule for ${userId} → ${newCron}`
+    }),
+  });
+  const writeData = await writeRes.json();
+  if (writeData.error) throw new Error(writeData.error);
 
   console.log(`✅ Cron updated successfully: ${newCron}`);
 }
