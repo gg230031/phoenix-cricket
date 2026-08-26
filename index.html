@@ -1166,8 +1166,16 @@ async function saveSettings() {
       `Phoenix: Update settings for ${currentUser.name}`
     );
 
+    // Auto-update cron schedule in workflow file
+    try {
+      showLoading('Updating bot schedule...');
+      await updateCronSchedule(currentUser.user_id, regDay, regTime);
+    } catch(e) {
+      console.log('Cron update note:', e.message);
+    }
+
     hideLoading();
-    showToast('✅ Settings saved successfully!', 'success');
+    showToast('✅ Settings saved & schedule updated!', 'success');
     document.getElementById('cricjoin-password').value = '';
     // Update placeholder to show password is saved
     document.getElementById('cricjoin-password').placeholder = '•••••••• (saved — leave blank to keep)';
@@ -1410,11 +1418,15 @@ function getRegistrationTarget() {
 
   const targetDay = days.indexOf(dayName);
   let diff = targetDay - now.getDay();
-  if (diff < 0) diff += 7;
+
   if (diff === 0) {
+    // Same day — check if time hasn't passed yet
     const todayTarget = new Date(now);
     todayTarget.setHours(hh, mm, 0, 0);
-    if (todayTarget <= now) diff = 7;
+    if (todayTarget <= now) diff = 7; // already passed → next week
+    // else diff = 0 → today!
+  } else if (diff < 0) {
+    diff += 7;
   }
 
   const target = new Date(now);
@@ -1456,14 +1468,78 @@ function updateNextRun() {
 }
 
 function getNextWeekday(dayName) {
-  const days  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const today = new Date();
+  const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const today  = new Date();
   const target = days.indexOf(dayName);
-  let diff = target - today.getDay();
-  if (diff <= 0) diff += 7;
+  let diff     = target - today.getDay();
+
+  // If same day — check if registration time has passed
+  if (diff === 0) {
+    const timeStr  = document.getElementById('reg-time')?.value || '09:00 PM';
+    const [tp, ap] = timeStr.split(' ');
+    let [hh, mm]   = tp.split(':').map(Number);
+    if (ap === 'PM' && hh !== 12) hh += 12;
+    if (ap === 'AM' && hh === 12) hh = 0;
+    const regToday = new Date(today);
+    regToday.setHours(hh, mm, 0, 0);
+    // If registration hasn't opened yet today → show today
+    if (regToday > today) diff = 0;
+    else diff = 7; // already passed → show next week
+  } else if (diff < 0) {
+    diff += 7;
+  }
+
   const next = new Date(today);
   next.setDate(today.getDate() + diff);
   return next.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  CRON AUTO-UPDATE
+// ══════════════════════════════════════════════════════════════════════════════
+async function updateCronSchedule(userId, regDay, regTime24) {
+  const dayMap = {
+    'Sunday':0,'Monday':1,'Tuesday':2,'Wednesday':3,
+    'Thursday':4,'Friday':5,'Saturday':6
+  };
+
+  const dayNum = dayMap[regDay] ?? 4;
+  const [hh, mm] = regTime24.split(':').map(Number);
+
+  // Convert IST to UTC (subtract 5h30m)
+  let totalMins = hh * 60 + mm - 330;
+  let cronDay   = dayNum;
+  if (totalMins < 0) { totalMins += 1440; cronDay = (cronDay - 1 + 7) % 7; }
+
+  // Fire 5 minutes before
+  totalMins -= 5;
+  if (totalMins < 0) { totalMins += 1440; cronDay = (cronDay - 1 + 7) % 7; }
+
+  const cronHour = Math.floor(totalMins / 60);
+  const cronMin  = totalMins % 60;
+  const newCron  = `${cronMin} ${cronHour} * * ${cronDay}`;
+
+  log(`📅 Updating cron to: ${newCron} (${regDay} at ${regTime24} IST, fires 5 mins early)`);
+
+  // Read current workflow file
+  const workflowPath = `.github/workflows/${userId}.yml`;
+  const workflowData = await ghRead(workflowPath);
+  const workflowContent = workflowData.content ?? workflowData;
+
+  // Replace cron line
+  const updated = workflowContent.replace(
+    /- cron: '[^']*'/,
+    `- cron: '${newCron}'`
+  );
+
+  // Write back
+  await ghWrite(
+    workflowPath,
+    updated,
+    `Phoenix: Update cron schedule for ${userId} → ${newCron}`
+  );
+
+  log(`✅ Cron updated successfully: ${newCron}`);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
