@@ -1,1 +1,9 @@
-"{\n  \"user_id\": \"user3\",\n  \"status\": \"idle\",\n  \"last_run\": \"\",\n  \"last_result\": \"\",\n  \"next_run\": \"\",\n  \"message\": \"Not yet run\",\n  \"slot_info\": \"\"\n}"
+{
+  "user_id": "user3",
+  "status": "idle",
+  "last_run": "",
+  "last_result": "",
+  "next_run": "",
+  "message": "Not yet run",
+  "slot_info": ""
+}
