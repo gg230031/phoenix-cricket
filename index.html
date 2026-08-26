@@ -1519,7 +1519,7 @@ async function updateCronSchedule(userId, regDay, regTime24) {
   const cronMin  = totalMins % 60;
   const newCron  = `${cronMin} ${cronHour} * * ${cronDay}`;
 
-  log(`📅 Updating cron to: ${newCron} (${regDay} at ${regTime24} IST, fires 5 mins early)`);
+  console.log(`📅 Updating cron to: ${newCron} (${regDay} at ${regTime24} IST, fires 5 mins early)`);
 
   // Read current workflow file
   const workflowPath = `.github/workflows/${userId}.yml`;
@@ -1539,7 +1539,7 @@ async function updateCronSchedule(userId, regDay, regTime24) {
     `Phoenix: Update cron schedule for ${userId} → ${newCron}`
   );
 
-  log(`✅ Cron updated successfully: ${newCron}`);
+  console.log(`✅ Cron updated successfully: ${newCron}`);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
