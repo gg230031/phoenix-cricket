@@ -218,7 +218,8 @@ DEFAULT_SITE = {
     "poll_next_keywords": ["next", "continue", "proceed"],
     "join_button_keywords": ["join"],
     "join_exclude_keywords": ["waitlist"],
-    "finalize_button_keywords": [],
+    "finalize_button_keywords": ["register"],
+    "confirm_keywords": ["approved"],
 }
 
 SITE_CONFIG_FILE = "configs/cricjoin_site.json"
@@ -492,37 +493,30 @@ def answer_poll(driver, cfg):
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def find_slot_cards(driver, site):
-    """Return [(card_element, action_element)] - one per slot on the page.
-    action_element is the slot's Join checkbox or Join button."""
-    join_kw = site["join_button_keywords"]
-    join_ex = site["join_exclude_keywords"]
-    cap_re  = re.compile(r"\d+\s*/\s*\d+")
-
-    actions = list(driver.find_elements(By.CSS_SELECTOR, "input[type='checkbox']"))
-    for el in driver.find_elements(By.XPATH, "//button | //a | //label | //span"):
-        try:
-            t = normalize(el.text or "")
-        except Exception:
-            continue
-        if t and len(t) <= 25 and any(k in t for k in join_kw) and not any(x in t for x in join_ex):
-            actions.append(el)
-
+    """Return [(card_element, checkbox_element)] - one per slot on the select-slot
+    page. A card is the largest ancestor of a Join checkbox that holds only that
+    one checkbox (so it contains the title, date/time and 'N / M members')."""
+    boxes = driver.find_elements(By.CSS_SELECTOR, "input[type='checkbox'], [role='checkbox']")
     cards, seen = [], set()
-    for act in actions:
-        node, card = act, None
+    for box in boxes:
+        card, node = None, box
         for _ in range(8):
             try:
                 node = node.find_element(By.XPATH, "..")
             except Exception:
                 break
-            txt = node.text or ""
-            if cap_re.search(txt) or "member" in txt.lower():
+            n = len(node.find_elements(By.CSS_SELECTOR, "input[type='checkbox'], [role='checkbox']"))
+            if n == 1:
                 card = node
+            elif n > 1:
                 break
         if card is None or card.id in seen:
             continue
+        txt = (card.text or "")
+        if "join" not in txt.lower():
+            continue
         seen.add(card.id)
-        cards.append((card, act))
+        cards.append((card, box))
     return cards
 
 
@@ -535,97 +529,164 @@ def _click(driver, el):
         driver.execute_script("arguments[0].click();", el)
 
 
-def select_slot_and_register(driver, cfg):
-    site = cfg["site"]
-    log("Opening slots page: " + cfg["slots_url"])
+def _is_checked(el):
+    try:
+        if el.tag_name == "input":
+            return el.is_selected()
+        return (el.get_attribute("aria-checked") or "").lower() == "true"
+    except Exception:
+        return False
 
-    # 1) navigate to /slots ourselves and wait for the slot cards to appear
-    cards = []
-    for attempt in range(1, int(cfg.get("slots_page_attempts", 20)) + 1):
-        driver.get(cfg["slots_url"])
-        time.sleep(1.5)
+
+def _final_register_button(driver, site):
+    """The dark 'Register' button under the slot list (not Cancel)."""
+    kws = site.get("finalize_button_keywords") or ["register"]
+    cands = driver.find_elements(By.TAG_NAME, "button") + \
+            driver.find_elements(By.CSS_SELECTOR, "input[type='submit']")
+    found = None
+    for b in cands:
+        t = normalize(b.text or b.get_attribute("value") or "")
+        if any(k in t for k in kws) and not any(x in t for x in ("cancel", "back", "waitlist")):
+            found = b          # last matching button on the page = the form's submit
+    return found
+
+
+def _slot_key(card_text):
+    """('oct 11', '5:00 pm') taken from the slot card, used to verify afterwards."""
+    t = " ".join(card_text.split())
+    d = re.search(r"([A-Za-z]{3})[a-z]*\s+(\d{1,2}),\s*\d{4}\s+at\s+(\d{1,2}:\d{2}\s*[AP]M)", t, re.I)
+    if not d:
+        return None
+    return (f"{d.group(1)} {int(d.group(2))}".lower(), re.sub(r"\s+", " ", d.group(3)).lower().lstrip("0"))
+
+
+def _registration_confirmed(driver, site, key):
+    """True only if the page shows an Approved registration (and the chosen date/time)."""
+    body = normalize(driver.find_element(By.TAG_NAME, "body").text)
+    ok_words = site.get("confirm_keywords") or ["approved"]
+    if not any(w in body for w in ok_words):
+        return False
+    if key:
+        day, tm = key
+        compact = body.replace("  ", " ")
+        if day not in compact:
+            return False
+        if tm.replace(":00", "") not in compact and tm not in compact:
+            return False
+    return True
+
+
+def select_slot_and_register(driver, cfg):
+    """Flow (after the Register button on /home was clicked):
+       select-slot page -> pick slot by priority -> tick Join -> click Register
+       -> verify 'Approved'.  Returns (ok, slot_text_or_reason)."""
+    site = cfg["site"]
+
+    # 1) wait for the select-slot page. Register on /home may first open a slot
+    #    page that has another Register button - click through up to 2 times.
+    cards, hops = [], 0
+    for attempt in range(1, int(cfg.get("slots_page_attempts", 40)) + 1):
         cards = find_slot_cards(driver, site)
         if cards:
             break
-        log(f"   Slots page attempt {attempt}: no slot cards yet")
-        time.sleep(float(cfg.get("check_interval_seconds", 0.5)))
+        if attempt in (3, 8):
+            answer_poll(driver, cfg)          # question may appear here too
+            continue
+        if hops < 2 and attempt % 3 == 0:
+            btn = find_button(driver, site["register_button_keywords"], site["register_exclude_keywords"])
+            if btn:
+                _click(driver, btn)
+                hops += 1
+                log("   Clicked another Register button to reach the slot selection page")
+        time.sleep(1)
     if not cards:
-        log("No slots found on the slots page")
-        return False, ""
-    log(f"   Found {len(cards)} slot card(s)")
+        log("Select-slot page never showed any Join checkboxes")
+        return False, "Select-slot page did not load"
+    log(f"   Found {len(cards)} slot(s) on the selection page")
+    for card, box in cards:
+        log("     - " + " ".join(card.text.split())[:110])
+
+    # already ticked? (e.g. user registered by hand) - nothing to do but verify
+    for card, box in cards:
+        if _is_checked(box):
+            txt = " ".join(card.text.split())
+            log("A slot is already selected: " + txt[:80])
+            return False, "A slot was already selected (not changed): " + txt[:70]
 
     def usable(card_text):
         if is_waitlist(card_text):
-            log(f"   Skipping waitlist slot: {card_text[:60]!r}")
+            log("   Skipping waitlist slot: " + " ".join(card_text.split())[:60])
             return False
         if is_slot_full(card_text):
-            log(f"   Skipping full slot: {card_text[:60]!r}")
+            log("   Skipping full slot: " + " ".join(card_text.split())[:60])
             return False
         return True
 
-    # 2) pick the slot by priority (Choice 1, then Choice 2, ...)
+    # 2) choose by priority
     matched = None
     for idx, choice in enumerate(cfg["slot_choices"]):
         day, tm = choice.get("slot_day", ""), choice.get("slot_time", "")
         log(f"   Trying choice {idx + 1}: {day} at {tm}")
-        for card, act in cards:
+        for card, box in cards:
             if usable(card.text) and slot_matches(card.text, day, tm):
-                matched = (card, act)
+                matched = (card, box)
                 log("Matched slot: " + " ".join(card.text.split())[:100])
                 break
         if matched:
             break
-
     if not matched:
         log("   No preferred slot available - trying first available slot")
-        for card, act in cards:
+        for card, box in cards:
             if usable(card.text):
-                matched = (card, act)
+                matched = (card, box)
                 log("   Fallback slot: " + " ".join(card.text.split())[:80])
                 break
     if not matched:
         log("No available slots found")
-        return False, ""
+        return False, "No available slot (all full / waitlist)"
 
-    card, action = matched
+    card, box = matched
     slot_text = " ".join(card.text.split())
+    key = _slot_key(slot_text)
 
-    # 3) click Join (this is the final action)
+    # 3) tick Join
+    _click(driver, box)
+    time.sleep(0.5)
+    if not _is_checked(box):
+        driver.execute_script("arguments[0].click();", box)   # retry via JS
+        time.sleep(0.5)
+    if not _is_checked(box):
+        log("Could not tick the Join checkbox")
+        return False, "Join checkbox could not be ticked: " + slot_text[:60]
+    log("Ticked Join")
+
+    # 4) final Register button
+    reg = _final_register_button(driver, site)
+    if not reg:
+        log("Final Register button not found")
+        return False, "Final Register button not found"
+    _click(driver, reg)
+    log("Clicked final Register")
+
+    # 5) verify: Approved (+ chosen date/time) on this page or on /home
+    for _ in range(10):
+        time.sleep(1.5)
+        try:
+            if _registration_confirmed(driver, site, key):
+                log("Verified: registration shows as Approved")
+                return True, slot_text
+        except Exception:
+            pass
     try:
-        already = action.tag_name == "input" and action.is_selected()
-    except Exception:
-        already = False
-    if already:
-        log("Slot is already registered - nothing to click")
-        return True, slot_text
-    _click(driver, action)
-    log("Clicked Join")
-    time.sleep(1.5)
-
-    # optional extra confirm button (empty by default - Join is the last step)
-    if site["finalize_button_keywords"]:
-        fin = find_button(driver, site["finalize_button_keywords"], ["cancel", "back"])
-        if fin:
-            _click(driver, fin)
-            log("Clicked confirm button: " + repr(fin.text.strip()))
-            time.sleep(1.5)
-
-    # 4) verify - re-read the slots page and look for this slot as registered
-    key = slot_text[:40]
-    try:
-        for c2, a2 in find_slot_cards(driver, site):
-            t2 = " ".join(c2.text.split())
-            if t2[:40] == key:
-                sel = a2.tag_name == "input" and a2.is_selected()
-                if sel or "registered" in t2.lower():
-                    log("Verified: slot now shows as registered")
-                    return True, slot_text
-                break
+        driver.get(cfg["forms_url"])
+        time.sleep(2)
+        if _registration_confirmed(driver, site, key):
+            log("Verified on home page: registration shows as Approved")
+            return True, slot_text
     except Exception as e:
-        log(f"   Verification skipped: {e}")
-    log("Join clicked but could not verify the registration")
-    return True, "(unverified) " + slot_text
-
+        log(f"   Verification error: {e}")
+    log("Register clicked but 'Approved' was NOT found - treating as failed")
+    return False, "Register clicked but not confirmed: " + slot_text[:60]
 
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -683,7 +744,7 @@ def main():
                 save_status(user_id, "success", slot_msg, next_run, slot_info)
                 log(f"\nðŸ  SUCCESS! {slot_msg}")
             else:
-                save_status(user_id, "failed", "Could not select slot â€” all may be full")
+                save_status(user_id, "failed", (slot_info or "Could not select slot")[:120])
                 log("\nâŒ  Failed to register â€” all slots may be full")
         else:
             save_status(user_id, "failed", "Timed out waiting for registration to open")
