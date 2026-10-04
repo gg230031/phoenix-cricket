@@ -1,0 +1,31 @@
+{
+  "login_url": "https://cricjoin.com/login",
+  "home_url": "https://cricjoin.com/home",
+  "slots_url": "https://cricjoin.com/slots",
+  "register_button_keywords": [
+    "register"
+  ],
+  "register_exclude_keywords": [
+    "cancel",
+    "back",
+    "waitlist",
+    "coming soon"
+  ],
+  "poll_next_keywords": [
+    "next",
+    "continue",
+    "proceed"
+  ],
+  "join_button_keywords": [
+    "join"
+  ],
+  "join_exclude_keywords": [
+    "waitlist"
+  ],
+  "finalize_button_keywords": [
+    "register"
+  ],
+  "confirm_keywords": [
+    "approved"
+  ]
+}
