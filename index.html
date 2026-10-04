@@ -741,6 +741,28 @@
       <div class="users-grid" id="users-grid"></div>
     </div>
 
+    <div class="card" id="site-settings-card">
+      <div class="card-header">
+        <div class="card-title"><div class="card-icon">🌐</div>CricJoin Site Settings</div>
+      </div>
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:16px;line-height:1.6;">
+        Shared by every user's bot. If CricJoin changes a page address or a button's wording, update it here — no code change needed. Keyword lists are comma-separated and not case sensitive.
+      </p>
+      <div class="form-group"><label>Login page URL</label><input type="text" id="site-login-url"></div>
+      <div class="form-group"><label>Home page URL (bot watches this for the Register button)</label><input type="text" id="site-home-url"></div>
+      <div class="form-group"><label>Slots page URL (bot opens this to pick a slot)</label><input type="text" id="site-slots-url"></div>
+      <div class="form-group"><label>Register button text contains</label><input type="text" id="site-register-kw"></div>
+      <div class="form-group"><label>…but ignore buttons containing</label><input type="text" id="site-register-ex"></div>
+      <div class="form-group"><label>Question page "Next" button contains</label><input type="text" id="site-poll-next"></div>
+      <div class="form-group"><label>Join button text contains</label><input type="text" id="site-join-kw"></div>
+      <div class="form-group"><label>…but ignore Join buttons containing</label><input type="text" id="site-join-ex"></div>
+      <div class="form-group"><label>Extra confirm button after Join (leave empty if Join is the last step)</label><input type="text" id="site-finalize-kw"></div>
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="btn-save" style="padding:10px 18px;font-size:13px" onclick="saveSiteSettings()">Save Site Settings</button>
+        <button class="btn-nav" style="padding:10px 18px;font-size:13px" onclick="resetSiteSettings()">Reset to defaults</button>
+      </div>
+    </div>
+
     <div class="section-spacer"></div>
   </div>
 </div>
@@ -1358,6 +1380,71 @@ async function saveSettings() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+//  CRICJOIN SITE SETTINGS (shared by all bots — configs/cricjoin_site.json)
+// ══════════════════════════════════════════════════════════════════════════════
+const SITE_FILE = 'configs/cricjoin_site.json';
+const SITE_DEFAULTS = {
+  login_url: 'https://cricjoin.com/login',
+  home_url:  'https://cricjoin.com/home',
+  slots_url: 'https://cricjoin.com/slots',
+  register_button_keywords:  ['register'],
+  register_exclude_keywords: ['cancel', 'back', 'waitlist', 'coming soon'],
+  poll_next_keywords:        ['next', 'continue', 'proceed'],
+  join_button_keywords:      ['join'],
+  join_exclude_keywords:     ['waitlist'],
+  finalize_button_keywords:  [],
+};
+const SITE_FIELDS = [
+  ['site-login-url','login_url'], ['site-home-url','home_url'], ['site-slots-url','slots_url'],
+  ['site-register-kw','register_button_keywords'], ['site-register-ex','register_exclude_keywords'],
+  ['site-poll-next','poll_next_keywords'], ['site-join-kw','join_button_keywords'],
+  ['site-join-ex','join_exclude_keywords'], ['site-finalize-kw','finalize_button_keywords'],
+];
+
+function fillSiteForm(site) {
+  for (const [id, key] of SITE_FIELDS) {
+    const v = site[key];
+    document.getElementById(id).value = Array.isArray(v) ? v.join(', ') : (v || '');
+  }
+}
+
+async function loadSiteSettings() {
+  let site = {};
+  try { site = await ghRead(SITE_FILE); } catch(e) { console.log('Site settings file not found yet — showing defaults'); }
+  fillSiteForm({ ...SITE_DEFAULTS, ...site });
+}
+
+function resetSiteSettings() {
+  fillSiteForm(SITE_DEFAULTS);
+  showToast('Defaults loaded — click Save Site Settings to apply', 'success');
+}
+
+async function saveSiteSettings() {
+  const out = {};
+  for (const [id, key] of SITE_FIELDS) {
+    const raw = document.getElementById(id).value.trim();
+    out[key] = Array.isArray(SITE_DEFAULTS[key])
+      ? raw.split(',').map(x => x.trim().toLowerCase()).filter(Boolean)
+      : raw;
+  }
+  for (const k of ['login_url', 'home_url', 'slots_url']) {
+    if (!/^https:\/\/\S+$/i.test(out[k])) { showToast(`${k.replace('_',' ')} must be a full https:// address`, 'error'); return; }
+  }
+  if (!out.register_button_keywords.length || !out.join_button_keywords.length) {
+    showToast('Register and Join keywords cannot be empty', 'error'); return;
+  }
+  try {
+    showLoading('Saving CricJoin site settings...');
+    await ghWrite(SITE_FILE, out, 'Phoenix: Update CricJoin site settings');
+    hideLoading();
+    showToast('✅ Site settings saved — all bots will use them from their next run', 'success');
+  } catch(e) {
+    hideLoading();
+    showToast('Error saving site settings: ' + e.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 //  ADMIN PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 async function loadAdminPage() {
@@ -1401,6 +1488,7 @@ async function loadAdminPage() {
       grid.appendChild(card);
     }
 
+    await loadSiteSettings();
     hideLoading();
     startClock('admin');
   } catch(e) {
