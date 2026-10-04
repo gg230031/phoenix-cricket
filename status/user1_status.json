@@ -1,9 +1,9 @@
 {
   "user_id": "user1",
-  "status": "running",
-  "last_run": "2026-08-26 13:22:27",
-  "last_result": "running",
+  "status": "success",
+  "last_run": "2026-10-04 08:31:31",
+  "last_result": "success",
   "next_run": "",
-  "message": "Bot started",
-  "slot_info": ""
+  "message": "Registered! \u00f0\u0178\u008f\u008f Slot: (unverified) 1 / 27 joined Free / player",
+  "slot_info": "(unverified) 1 / 27 joined Free / player"
 }

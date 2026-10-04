@@ -21,6 +21,6 @@
     }
   ],
   "login_url": "https://cricjoin.com/login",
-  "forms_url": "https://cricjoin.com/my-cricket",
+  "forms_url": "https://cricjoin.com/home",
   "check_interval_seconds": 0.1
 }
