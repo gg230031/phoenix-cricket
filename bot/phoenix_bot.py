@@ -71,20 +71,34 @@ def is_waitlist(text):
     return 'waitlist' in normalize(text)
 
 
+def _time_to_minutes(text):
+    """First clock time found in text -> minutes since midnight, else None."""
+    m = re.search(r"(\d{1,2}):(\d{2})\s*([ap])\.?m", text.lower())
+    if m:
+        hh, mm, ap = int(m.group(1)), int(m.group(2)), m.group(3)
+        if ap == "p" and hh != 12:
+            hh += 12
+        if ap == "a" and hh == 12:
+            hh = 0
+        return hh * 60 + mm
+    m = re.search(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", text)
+    if m:
+        return int(m.group(1)) * 60 + int(m.group(2))
+    return None
+
+
 def slot_matches(card_text, slot_day, slot_time):
-    card     = normalize(card_text)
-    day_ok   = (not slot_day) or (normalize(slot_day) in card)
-    if slot_time:
-        target_24 = time_to_24h(slot_time)
-        time_ok   = (target_24 in card) or (normalize(slot_time) in card)
-        try:
-            alt = datetime.strptime(target_24, "%H:%M").strftime("%I:%M %p").lstrip("0").lower()
-            time_ok = time_ok or (alt in card)
-        except Exception:
-            pass
-    else:
-        time_ok = True
-    return day_ok and time_ok
+    card   = normalize(card_text)
+    day_ok = (not slot_day) or (normalize(slot_day) in card)
+    if not slot_time:
+        return day_ok
+    target = _time_to_minutes(slot_time)
+    # the slot's START time is the first time shown on the card
+    start  = _time_to_minutes(card_text)
+    if target is not None and start is not None:
+        return day_ok and (start == target)
+    # fallback: plain text match
+    return day_ok and (normalize(slot_time) in card)
 
 
 def find_button(driver, keywords, exclude_keywords=None):
@@ -195,10 +209,60 @@ def load_config(config_file):
         sys.exit(1)
 
 
+DEFAULT_SITE = {
+    "login_url": "https://cricjoin.com/login",
+    "home_url":  "https://cricjoin.com/home",
+    "slots_url": "https://cricjoin.com/slots",
+    "register_button_keywords": ["register"],
+    "register_exclude_keywords": ["cancel", "back", "waitlist", "coming soon"],
+    "poll_next_keywords": ["next", "continue", "proceed"],
+    "join_button_keywords": ["join"],
+    "join_exclude_keywords": ["waitlist"],
+    "finalize_button_keywords": [],
+}
+
+SITE_CONFIG_FILE = "configs/cricjoin_site.json"
+
+
+def load_site_config():
+    """Shared CricJoin settings (URLs + button keywords), editable from the
+    Phoenix admin panel. Any missing/invalid field falls back to its default."""
+    site = {k: (list(v) if isinstance(v, list) else v) for k, v in DEFAULT_SITE.items()}
+    try:
+        with open(SITE_CONFIG_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        for key, default in DEFAULT_SITE.items():
+            val = data.get(key)
+            if isinstance(default, list):
+                if isinstance(val, list) and all(isinstance(x, str) for x in val):
+                    site[key] = [x.strip().lower() for x in val if x.strip()]
+            elif isinstance(val, str) and val.strip():
+                site[key] = val.strip()
+        print(f"[site] Loaded shared CricJoin config: {SITE_CONFIG_FILE}", flush=True)
+    except FileNotFoundError:
+        print(f"[site] {SITE_CONFIG_FILE} not found - using built-in defaults", flush=True)
+    except Exception as e:
+        print(f"[site] Could not read {SITE_CONFIG_FILE} ({e}) - using built-in defaults", flush=True)
+    return site
+
+
+def apply_site_config(cfg):
+    """Attach shared site settings to the user's cfg. The shared file wins over
+    the old per-user login_url / forms_url fields."""
+    site = load_site_config()
+    cfg["site"]      = site
+    cfg["login_url"] = site["login_url"]
+    cfg["forms_url"] = site["home_url"]
+    cfg["slots_url"] = site["slots_url"]
+    return cfg
+
+
 def save_config(cfg, config_file):
+    # never write the shared site settings back into a user's own config file
+    out = {k: v for k, v in cfg.items() if k not in ("site", "slots_url")}
     with open(config_file, "w") as f:
-        json.dump(cfg, f, indent=2)
-    log(f"âœ…  Config saved: {config_file}")
+        json.dump(out, f, indent=2)
+    log(f"Config saved: {config_file}")
 
 
 def save_status(user_id, status, message, next_run="", slot_info=""):
@@ -290,6 +354,8 @@ def login(driver, cfg):
 def wait_for_register_button(driver, cfg):
     interval     = float(cfg.get("check_interval_seconds", 0.5))
     category     = normalize(cfg.get("category", ""))
+    reg_kw       = cfg["site"]["register_button_keywords"]
+    reg_ex       = cfg["site"]["register_exclude_keywords"]
     attempt      = 0
     max_attempts = 600  # 10 minutes max
 
@@ -313,10 +379,8 @@ def wait_for_register_button(driver, cfg):
             register_btns = []
             for btn in all_buttons:
                 btn_text = normalize(btn.text or btn.get_attribute('value') or '')
-                # Must contain 'register' but NOT 'cancel', 'back', 'waitlist'
-                if 'register' in btn_text and not any(
-                    x in btn_text for x in ['cancel', 'back', 'waitlist']
-                ):
+                # keywords come from the shared CricJoin site config
+                if any(k in btn_text for k in reg_kw) and not any(x in btn_text for x in reg_ex):
                     register_btns.append(btn)
 
             if attempt == 1:
@@ -372,7 +436,8 @@ def wait_for_register_button(driver, cfg):
 
 def answer_poll(driver, cfg):
     poll_answer = cfg.get("poll_answer", "Excellent")
-    wait        = WebDriverWait(driver, 10)
+    # the question may or may not appear - don't burn 10s when it doesn't
+    wait        = WebDriverWait(driver, float(cfg.get("poll_wait_seconds", 3)))
 
     log(f"ðŸ“‹  Answering poll: '{poll_answer}'")
     try:
@@ -401,7 +466,7 @@ def answer_poll(driver, cfg):
         # Find Next/Continue/Proceed button (case insensitive)
         next_btn = find_button(
             driver,
-            keywords=['next', 'continue', 'proceed'],
+            keywords=cfg["site"]["poll_next_keywords"],
             exclude_keywords=['cancel', 'back']
         )
 
@@ -426,119 +491,141 @@ def answer_poll(driver, cfg):
 #  SELECT SLOT & REGISTER
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-def select_slot_and_register(driver, cfg):
-    log("ðŸŽ¯  Selecting slot...")
-    time.sleep(1)
-    registered_slot_info = ""
+def find_slot_cards(driver, site):
+    """Return [(card_element, action_element)] - one per slot on the page.
+    action_element is the slot's Join checkbox or Join button."""
+    join_kw = site["join_button_keywords"]
+    join_ex = site["join_exclude_keywords"]
+    cap_re  = re.compile(r"\d+\s*/\s*\d+")
 
-    try:
-        # Find all slot containers
-        slot_containers = driver.find_elements(By.XPATH, "//div[.//input[@type='checkbox']]")
-        if not slot_containers:
-            slot_containers = driver.find_elements(By.CSS_SELECTOR, "input[type='checkbox']")
-
-        log(f"   Found {len(slot_containers)} slot container(s)")
-
-        matched      = None
-        matched_text = ""
-
-        # Go through slot choices in order
-        for choice_idx, choice in enumerate(cfg["slot_choices"]):
-            slot_day  = choice.get("slot_day", "")
-            slot_time = choice.get("slot_time", "")
-            log(f"   Trying choice {choice_idx + 1}: {slot_day} at {slot_time}")
-
-            for container in slot_containers:
-                container_text = container.text
-
-                # Skip waitlist slots
-                if is_waitlist(container_text):
-                    log(f"   Skipping waitlist slot: {container_text[:60]}")
-                    continue
-
-                # Skip full slots
-                if is_slot_full(container_text):
-                    log(f"   Skipping full slot: {container_text[:60]}")
-                    continue
-
-                # Match day + time
-                if slot_matches(container_text, slot_day, slot_time):
-                    matched      = container
-                    matched_text = container_text
-                    log(f"âœ…  Matched slot: {container_text[:100].strip()}")
-                    break
-
-            if matched:
-                break
-
-        # Fallback â€” first available non-waitlist slot
-        if not matched:
-            log("   No exact match â€” trying first available non-waitlist slot")
-            for container in slot_containers:
-                if not is_waitlist(container.text) and not is_slot_full(container.text):
-                    matched      = container
-                    matched_text = container.text
-                    log(f"   Fallback slot: {container.text[:80]}")
-                    break
-
-        if not matched:
-            log("âŒ  No available slots found")
-            return False, ""
-
-        # Find and click the Join checkbox (not Join Waitlist)
-        join_checkbox = None
+    actions = list(driver.find_elements(By.CSS_SELECTOR, "input[type='checkbox']"))
+    for el in driver.find_elements(By.XPATH, "//button | //a | //label | //span"):
         try:
-            # Look for checkbox inside the container
-            checkboxes = matched.find_elements(By.CSS_SELECTOR, "input[type='checkbox']")
-            for cb in checkboxes:
-                parent_text = normalize(cb.find_element(By.XPATH, "..").text)
-                if 'waitlist' not in parent_text:
-                    join_checkbox = cb
-                    break
-            if not join_checkbox and checkboxes:
-                join_checkbox = checkboxes[0]
-        except NoSuchElementException:
-            join_checkbox = matched
+            t = normalize(el.text or "")
+        except Exception:
+            continue
+        if t and len(t) <= 25 and any(k in t for k in join_kw) and not any(x in t for x in join_ex):
+            actions.append(el)
 
-        if join_checkbox:
-            driver.execute_script("arguments[0].scrollIntoView(true);", join_checkbox)
-            time.sleep(0.2)
-            if not join_checkbox.is_selected():
-                try:
-                    join_checkbox.click()
-                except ElementClickInterceptedException:
-                    driver.execute_script("arguments[0].click();", join_checkbox)
-            log("âœ…  Join checkbox ticked")
-        
-        time.sleep(0.5)
-
-        # Click Register button (not Cancel, not Back)
-        register_btn = find_button(
-            driver,
-            keywords=['register'],
-            exclude_keywords=['cancel', 'back', 'waitlist']
-        )
-
-        if register_btn:
-            log(f"âœ…  Found Register button: '{register_btn.text.strip()}'")
-            driver.execute_script("arguments[0].scrollIntoView(true);", register_btn)
-            time.sleep(0.2)
+    cards, seen = [], set()
+    for act in actions:
+        node, card = act, None
+        for _ in range(8):
             try:
-                register_btn.click()
-            except ElementClickInterceptedException:
-                driver.execute_script("arguments[0].click();", register_btn)
-            log("âœ…  Final Register clicked!")
-            time.sleep(2)
-            return True, matched_text
-        else:
-            log("âŒ  Could not find Register button")
-            return False, ""
+                node = node.find_element(By.XPATH, "..")
+            except Exception:
+                break
+            txt = node.text or ""
+            if cap_re.search(txt) or "member" in txt.lower():
+                card = node
+                break
+        if card is None or card.id in seen:
+            continue
+        seen.add(card.id)
+        cards.append((card, act))
+    return cards
 
-    except Exception as e:
-        log(f"âŒ  Slot selection error: {e}")
-        import traceback
-        traceback.print_exc()
+
+def _click(driver, el):
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", el)
+    time.sleep(0.2)
+    try:
+        el.click()
+    except ElementClickInterceptedException:
+        driver.execute_script("arguments[0].click();", el)
+
+
+def select_slot_and_register(driver, cfg):
+    site = cfg["site"]
+    log("Opening slots page: " + cfg["slots_url"])
+
+    # 1) navigate to /slots ourselves and wait for the slot cards to appear
+    cards = []
+    for attempt in range(1, int(cfg.get("slots_page_attempts", 20)) + 1):
+        driver.get(cfg["slots_url"])
+        time.sleep(1.5)
+        cards = find_slot_cards(driver, site)
+        if cards:
+            break
+        log(f"   Slots page attempt {attempt}: no slot cards yet")
+        time.sleep(float(cfg.get("check_interval_seconds", 0.5)))
+    if not cards:
+        log("No slots found on the slots page")
         return False, ""
+    log(f"   Found {len(cards)} slot card(s)")
+
+    def usable(card_text):
+        if is_waitlist(card_text):
+            log(f"   Skipping waitlist slot: {card_text[:60]!r}")
+            return False
+        if is_slot_full(card_text):
+            log(f"   Skipping full slot: {card_text[:60]!r}")
+            return False
+        return True
+
+    # 2) pick the slot by priority (Choice 1, then Choice 2, ...)
+    matched = None
+    for idx, choice in enumerate(cfg["slot_choices"]):
+        day, tm = choice.get("slot_day", ""), choice.get("slot_time", "")
+        log(f"   Trying choice {idx + 1}: {day} at {tm}")
+        for card, act in cards:
+            if usable(card.text) and slot_matches(card.text, day, tm):
+                matched = (card, act)
+                log("Matched slot: " + " ".join(card.text.split())[:100])
+                break
+        if matched:
+            break
+
+    if not matched:
+        log("   No preferred slot available - trying first available slot")
+        for card, act in cards:
+            if usable(card.text):
+                matched = (card, act)
+                log("   Fallback slot: " + " ".join(card.text.split())[:80])
+                break
+    if not matched:
+        log("No available slots found")
+        return False, ""
+
+    card, action = matched
+    slot_text = " ".join(card.text.split())
+
+    # 3) click Join (this is the final action)
+    try:
+        already = action.tag_name == "input" and action.is_selected()
+    except Exception:
+        already = False
+    if already:
+        log("Slot is already registered - nothing to click")
+        return True, slot_text
+    _click(driver, action)
+    log("Clicked Join")
+    time.sleep(1.5)
+
+    # optional extra confirm button (empty by default - Join is the last step)
+    if site["finalize_button_keywords"]:
+        fin = find_button(driver, site["finalize_button_keywords"], ["cancel", "back"])
+        if fin:
+            _click(driver, fin)
+            log("Clicked confirm button: " + repr(fin.text.strip()))
+            time.sleep(1.5)
+
+    # 4) verify - re-read the slots page and look for this slot as registered
+    key = slot_text[:40]
+    try:
+        for c2, a2 in find_slot_cards(driver, site):
+            t2 = " ".join(c2.text.split())
+            if t2[:40] == key:
+                sel = a2.tag_name == "input" and a2.is_selected()
+                if sel or "registered" in t2.lower():
+                    log("Verified: slot now shows as registered")
+                    return True, slot_text
+                break
+    except Exception as e:
+        log(f"   Verification skipped: {e}")
+    log("Join clicked but could not verify the registration")
+    return True, "(unverified) " + slot_text
+
 
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -556,6 +643,7 @@ def main():
 
     config_file = sys.argv[1]
     cfg         = load_config(config_file)
+    apply_site_config(cfg)
     user_id     = cfg.get("user_id", "user1")
 
     if not cfg.get("active", True):
