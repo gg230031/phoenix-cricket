@@ -22,6 +22,6 @@
     }
   ],
   "login_url": "https://cricjoin.com/login",
-  "forms_url": "https://cricjoin.com/my-cricket",
+  "forms_url": "https://cricjoin.com/home",
   "secret_name": "USER3_PASSWORD"
 }
