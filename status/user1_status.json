@@ -1,9 +1,9 @@
 {
   "user_id": "user1",
-  "status": "success",
-  "last_run": "2026-10-18 12:41:13",
-  "last_result": "success",
+  "status": "failed",
+  "last_run": "2026-10-25 13:44:40",
+  "last_result": "failed",
   "next_run": "",
-  "message": "Registered! \u00f0\u0178\u008f\u008f Slot: Sunday Afternoon at PTKS Kids and Adult Gymnastics (Developmental) Oct 25, 2026 ",
-  "slot_info": "Sunday Afternoon at PTKS Kids and Adult Gymnastics (Developmental) Oct 25, 2026 at 4:00 PM - 7:00 PM IST 8 / 36 members View Members Join"
+  "message": "Timed out waiting for registration to open",
+  "slot_info": ""
 }
