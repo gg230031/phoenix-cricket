@@ -1,7 +1,7 @@
 {
   "user_id": "user1",
   "status": "failed",
-  "last_run": "2026-10-25 13:44:40",
+  "last_run": "2026-10-26 21:17:43",
   "last_result": "failed",
   "next_run": "",
   "message": "Timed out waiting for registration to open",
